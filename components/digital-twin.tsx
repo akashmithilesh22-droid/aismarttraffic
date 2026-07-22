@@ -13,8 +13,8 @@ interface TwinProps {
 
 const RISK_COLOR: Record<string, string> = {
   Low: "var(--chart-4)",
-  Moderate: "var(--chart-1)",
-  High: "#fb923c",
+  Moderate: "var(--chart-2)",
+  High: "var(--warning)",
   Critical: "var(--chart-3)",
 }
 
@@ -87,7 +87,7 @@ export function DigitalTwin({ officers, barricades, diversions, checkpoints, int
                 width="28"
                 height="20"
                 rx="3"
-                fill="var(--chart-1)"
+                fill="var(--primary)"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.4 + i * 0.12 }}
@@ -122,7 +122,7 @@ export function DigitalTwin({ officers, barricades, diversions, checkpoints, int
       </svg>
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border px-4 py-3 text-xs text-muted-foreground">
         <Legend color={color} label="Barricades" />
-        <Legend color="var(--chart-1)" label="Checkpoints" />
+        <Legend color="var(--primary)" label="Checkpoints" />
         <Legend color="var(--chart-4)" label="Officers" />
         <Legend color="var(--chart-2)" label="Diversions" />
       </div>

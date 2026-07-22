@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Activity, BrainCircuit, Radar, ShieldAlert, FlaskConical, Home, Cpu, Database } from "lucide-react"
 import { useEngine } from "@/lib/data-provider"
+import { ThemeToggle } from "./theme-toggle"
 
 const NAV = [
   { href: "/", label: "Home", icon: Home },
@@ -26,8 +27,8 @@ export function Sidebar() {
           <Activity className="size-5" />
         </div>
         <div className="leading-tight">
-          <p className="font-mono text-sm font-semibold tracking-tight text-sidebar-foreground">SmartTraffic</p>
-          <p className="text-[11px] uppercase tracking-widest text-primary">AI Command</p>
+          <p className="text-sm font-semibold tracking-tight text-sidebar-foreground">SmartTraffic</p>
+          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">AI Command</p>
         </div>
       </div>
 
@@ -40,18 +41,17 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              aria-current={active ? "page" : undefined}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                "relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
                 active
-                  ? "bg-sidebar-accent text-sidebar-foreground ring-1 ring-primary/20"
+                  ? "bg-sidebar-accent text-sidebar-foreground"
                   : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
               )}
             >
-              <Icon className={cn("size-4 shrink-0", active && "text-primary")} />
+              {active && <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-r bg-primary" />}
+              <Icon className={cn("size-4 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
               {item.label}
-              {active && (
-                <span className="ml-auto size-1.5 rounded-full bg-primary animate-pulse-glow" />
-              )}
             </Link>
           )
         })}
@@ -81,20 +81,23 @@ export function Sidebar() {
 
       {/* Status footer */}
       <div className="border-t border-sidebar-border px-5 py-4">
-        <div className="flex items-center gap-2">
-          {loading ? (
-            <>
-              <span className="size-2 rounded-full bg-primary animate-pulse" />
-              <p className="text-[11px] text-muted-foreground">Loading dataset…</p>
-            </>
-          ) : (
-            <>
-              <Cpu className="size-3 text-accent" />
-              <p className="text-[11px] text-muted-foreground">
-                Model <span className="text-accent font-semibold">live</span> · {records.length.toLocaleString()} incidents
-              </p>
-            </>
-          )}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            {loading ? (
+              <>
+                <span className="size-2 shrink-0 rounded-full bg-primary animate-pulse" />
+                <p className="truncate text-[11px] text-muted-foreground">Loading dataset…</p>
+              </>
+            ) : (
+              <>
+                <Cpu className="size-3 shrink-0 text-accent" />
+                <p className="truncate text-[11px] text-muted-foreground">
+                  Model <span className="text-accent font-semibold">live</span> · {records.length.toLocaleString()} incidents
+                </p>
+              </>
+            )}
+          </div>
+          <ThemeToggle className="shrink-0" />
         </div>
       </div>
     </aside>

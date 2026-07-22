@@ -45,10 +45,10 @@ export function Pipeline({ steps }: { steps: string[] }) {
               transition={{ delay: i * 0.08 }}
               className={`flex w-full items-center justify-between gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all duration-300 ${
                 isCurrent
-                  ? "border-primary bg-primary/10 shadow-[0_0_12px_rgba(var(--primary-rgb,245,178,90),0.2)] text-foreground"
+                  ? "border-primary bg-primary/10 ring-1 ring-primary/25 text-foreground"
                   : isDone
                   ? "border-accent/40 bg-accent/10 text-accent"
-                  : "border-border bg-card/60 text-muted-foreground"
+                  : "border-border bg-card text-muted-foreground"
               }`}
             >
               <div className="flex items-center gap-2">

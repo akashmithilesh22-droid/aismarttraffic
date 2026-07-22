@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { BrainCircuit, Radar, ShieldAlert, FlaskConical, Home } from "lucide-react"
+import { ThemeToggle } from "./theme-toggle"
 
 const NAV = [
   { href: "/", label: "Home", icon: Home },
@@ -16,7 +17,7 @@ const NAV = [
 export function MobileNav() {
   const pathname = usePathname()
   return (
-    <nav className="sticky bottom-0 z-40 flex items-center justify-around border-t border-border bg-card/95 px-2 py-2 backdrop-blur md:hidden">
+    <nav className="sticky bottom-0 z-40 flex items-center justify-around border-t border-border bg-card px-1 py-2 md:hidden">
       {NAV.map((item) => {
         const active = pathname === item.href
         const Icon = item.icon
@@ -25,7 +26,7 @@ export function MobileNav() {
             key={item.href}
             href={item.href}
             className={cn(
-              "flex flex-col items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium",
+              "flex flex-col items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-colors",
               active ? "text-primary" : "text-muted-foreground",
             )}
           >
@@ -34,6 +35,10 @@ export function MobileNav() {
           </Link>
         )
       })}
+      <div className="flex flex-col items-center gap-1 px-1 py-1 text-[10px] font-medium text-muted-foreground">
+        <ThemeToggle className="size-7 border-0 bg-transparent" />
+        <span>Theme</span>
+      </div>
     </nav>
   )
 }

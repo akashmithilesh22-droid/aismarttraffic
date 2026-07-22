@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
+import { useState } from "react"
 import { motion } from "framer-motion"
-import { RoadNetwork } from "@/components/road-network"
 import { useEngine } from "@/lib/data-provider"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -29,6 +29,13 @@ import {
   Siren,
   TrendingUp,
   TrendingDown,
+  ShieldCheck,
+  MapPin,
+  Shield,
+  PlayCircle,
+  CalendarDays,
+  Gauge,
+  Layers,
 } from "lucide-react"
 
 
@@ -68,94 +75,108 @@ const WORKFLOW = ["Dataset", "Data Processing", "AI Training", "Prediction Engin
 export default function LandingPage() {
   const { records, summary, model, loading } = useEngine()
 
+  const heroStats = [
+    { icon: CalendarDays, v: loading ? "…" : records.length.toLocaleString(), l: "Events Analyzed" },
+    { icon: Gauge, v: loading || !model ? "…" : `${Math.round(model.metrics.accuracy)}%`, l: "Prediction Accuracy" },
+    { icon: Layers, v: loading ? "…" : `${summary?.totalFeatures ?? 0}`, l: "Data Features" },
+    { icon: TrendingUp, v: loading || !model ? "…" : model.metrics.r2.toFixed(2), l: "Model R²" },
+  ]
+
   return (
     <div className="min-h-svh bg-background text-foreground">
+      {/* ---------- PUBLIC HEADER ---------- */}
+      <header className="sticky top-0 z-50 border-b border-border/70 bg-background">
+        <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-6">
+          <Link href="/" className="flex items-center gap-3">
+            <span className="flex size-10 items-center justify-center rounded-full bg-[#1d3a6e] text-white ring-1 ring-[#1d3a6e]/20">
+              <Shield className="size-5" />
+            </span>
+            <span className="leading-tight">
+              <span className="block text-base font-bold tracking-tight">SmartTraffic AI</span>
+              <span className="block text-xs text-muted-foreground">Bengaluru Traffic Police</span>
+            </span>
+          </Link>
+          <nav className="hidden items-center gap-8 md:flex">
+            <a href="#features" className="text-sm font-medium text-foreground/80 transition-colors hover:text-primary">Features</a>
+            <a href="#workflow" className="text-sm font-medium text-foreground/80 transition-colors hover:text-primary">Modules</a>
+            <a href="#impact" className="text-sm font-medium text-foreground/80 transition-colors hover:text-primary">Impact</a>
+            <a href="#about" className="text-sm font-medium text-foreground/80 transition-colors hover:text-primary">About</a>
+          </nav>
+          <div className="flex items-center gap-3">
+            <Link href="/forecast" className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'hidden rounded-full sm:inline-flex')}>Login</Link>
+            <Link href="/forecast" className={cn(buttonVariants({ size: 'lg' }), 'gap-1.5 rounded-full')}>Get Started <ArrowRight className="size-4" /></Link>
+          </div>
+        </div>
+      </header>
+
       {/* ---------- HERO ---------- */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 grid-bg opacity-40" />
-        <RoadNetwork className="absolute inset-0 h-full w-full opacity-70" />
-        <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/70 to-background" />
-
-        <div className="relative mx-auto flex max-w-5xl flex-col items-center px-6 py-24 text-center md:py-32">
+        <div className="mx-auto grid max-w-6xl items-center gap-10 px-6 py-14 md:grid-cols-2 md:py-20">
+          {/* Left — message */}
           <motion.div
-            initial={{ opacity: 0, y: 12 }}
+            initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-4 py-1.5 text-xs font-medium backdrop-blur"
+            className="relative z-10"
           >
-            <Activity className="size-3.5 text-primary animate-pulse" />
-            <span className="text-muted-foreground">Trained live on real Bengaluru incident data</span>
-            {!loading && model && (
-              <span className="ml-1 rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-semibold text-accent">
-                {Math.round(model.metrics.accuracy)}% accuracy
-              </span>
-            )}
+            <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-semibold text-primary">
+              <Sparkles className="size-4" />
+              AI-Powered Traffic Management
+            </span>
+            <h1 className="mt-6 text-balance text-5xl font-extrabold leading-[1.05] tracking-tight md:text-6xl lg:text-7xl">
+              Smarter Roads,
+              <br />
+              <span className="text-primary">Safer Bengaluru</span>
+            </h1>
+            <p className="mt-6 max-w-lg text-pretty text-lg leading-relaxed text-muted-foreground">
+              SmartTraffic AI helps Bengaluru Traffic Police predict congestion, optimize resources, and
+              manage events with real-time intelligence.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
+              <Link href="/forecast" className={cn(buttonVariants({ size: 'lg' }), 'gap-2 px-6 text-base')}>
+                Explore Dashboard <ArrowRight className="size-4" />
+              </Link>
+              <a href="#workflow" className="inline-flex items-center gap-2 text-base font-semibold text-foreground transition-colors hover:text-primary">
+                <PlayCircle className="size-6 text-primary" /> How it Works
+              </a>
+            </div>
+
+            {/* stat card */}
+            <div className="mt-12 grid grid-cols-2 gap-x-4 gap-y-6 rounded-2xl border border-border bg-card p-6 shadow-sm sm:grid-cols-4">
+              {heroStats.map((s) => (
+                <div key={s.l} className="text-center">
+                  <span className="mx-auto flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <s.icon className="size-5" />
+                  </span>
+                  <p className="mt-3 text-2xl font-extrabold tabular-nums text-foreground">{s.v}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{s.l}</p>
+                </div>
+              ))}
+            </div>
           </motion.div>
 
-          <motion.h1
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.05 }}
-            className="text-balance font-mono text-5xl font-bold tracking-tight md:text-7xl"
-          >
-            SmartTraffic <span className="text-primary">AI</span>
-          </motion.h1>
-
-          <motion.p
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.15 }}
-            className="mt-5 max-w-2xl text-pretty text-lg text-muted-foreground md:text-xl"
-          >
-            AI-Powered Event Traffic Forecasting & Resource Planning. Turn historical and event-related
-            traffic data into optimal manpower, barricading, and diversion plans.
-          </motion.p>
-
+          {/* Right — who this serves */}
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
+            initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.25 }}
-            className="mt-9 flex flex-col gap-3 sm:flex-row"
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="relative"
           >
-            <Link href="/forecast" className={cn(buttonVariants({ size: 'lg' }), 'gap-2')}>
-              Launch Platform <ArrowRight className="size-4" />
-            </Link>
-            <Link
-              href="/training"
-              className={cn(buttonVariants({ size: 'lg', variant: 'outline' }), 'gap-2 bg-transparent')}
-            >
-              <BrainCircuit className="size-4" /> Explore AI Demo
-            </Link>
-          </motion.div>
-
-          {/* live stats */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="mt-14 grid w-full max-w-3xl grid-cols-2 gap-4 md:grid-cols-4"
-          >
-            {[
-              { v: loading ? "…" : records.length.toLocaleString(), l: "Incidents Learned", color: "text-primary" },
-              { v: loading ? "…" : `${summary?.totalFeatures ?? 0}`, l: "Data Features", color: "text-accent" },
-              { v: loading || !model ? "…" : `${Math.round(model.metrics.accuracy)}%`, l: "Risk Accuracy", color: "text-primary" },
-              { v: loading || !model ? "…" : model.metrics.r2.toFixed(2), l: "Model R²", color: "text-accent" },
-            ].map((s) => (
-              <motion.div
-                key={s.l}
-                whileHover={{ scale: 1.04 }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                className="glass rounded-xl p-4 card-hover cursor-default"
-              >
-                <p className={`font-mono text-2xl font-bold tabular-nums ${s.color}`}>{s.v}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{s.l}</p>
-              </motion.div>
-            ))}
+            {/* orange accent blob */}
+            <div
+              className="pointer-events-none absolute -right-8 -top-10 -z-0 size-72 rounded-full bg-primary/25 blur-3xl md:size-96"
+              aria-hidden="true"
+            />
+            <div className="relative z-10 overflow-hidden rounded-2xl border border-border shadow-sm">
+              <div className="aspect-[4/3] w-full">
+                <HeroImage />
+              </div>
+            </div>
           </motion.div>
         </div>
       </section>
 
-      <div className="mx-auto max-w-6xl space-y-28 px-6 py-24">
+      <div className="mx-auto max-w-6xl space-y-20 px-6 py-20">
         {/* ---------- PROBLEM ---------- */}
         <Section
           eyebrow="The Problem"
@@ -164,7 +185,7 @@ export default function LandingPage() {
         >
           <div className="mb-10 flex flex-wrap justify-center gap-3">
             {PROBLEMS.map((p) => (
-              <div key={p.label} className="flex items-center gap-2 rounded-lg border border-border bg-card/50 px-4 py-2.5">
+              <div key={p.label} className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5">
                 <p.icon className="size-4 text-destructive" />
                 <span className="text-sm">{p.label}</span>
               </div>
@@ -177,7 +198,7 @@ export default function LandingPage() {
               "Congestion response is delayed",
               "No forecasting systems in place",
             ].map((c) => (
-              <div key={c} className="flex items-start gap-3 rounded-xl border border-border bg-card/40 p-4">
+              <div key={c} className="flex items-start gap-3 rounded-xl border border-border bg-card p-4">
                 <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
                 <p className="text-sm text-muted-foreground">{c}</p>
               </div>
@@ -199,7 +220,7 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.05 }}
-                className="flex items-center gap-3 rounded-xl border border-border bg-card/50 p-4"
+                className="flex items-center gap-3 rounded-xl border border-border bg-card p-4"
               >
                 <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/15 font-mono text-xs text-primary">
                   {i + 1}
@@ -211,7 +232,7 @@ export default function LandingPage() {
         </Section>
 
         {/* ---------- FEATURES ---------- */}
-        <Section eyebrow="Capabilities" title="Everything in one command center" desc="Ten integrated modules across five focused workspaces.">
+        <Section id="features" eyebrow="Capabilities" title="Everything in one command center" desc="Ten integrated modules across five focused workspaces.">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map((f, i) => (
               <motion.div
@@ -220,9 +241,9 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: (i % 3) * 0.06 }}
-                className="group glass rounded-xl p-5 transition-colors hover:ring-1 hover:ring-primary/40"
+                className="group glass card-hover rounded-lg p-5"
               >
-                <div className="mb-3 flex size-10 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                <div className="mb-3 flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary">
                   <f.icon className="size-5" />
                 </div>
                 <h3 className="font-medium">{f.title}</h3>
@@ -233,11 +254,11 @@ export default function LandingPage() {
         </Section>
 
         {/* ---------- WORKFLOW ---------- */}
-        <Section eyebrow="How It Works" title="The platform workflow" desc="A continuous pipeline from dataset to deployed traffic solution.">
+        <Section id="workflow" eyebrow="How It Works" title="The platform workflow" desc="A continuous pipeline from dataset to deployed traffic solution.">
           <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-center md:justify-between">
             {WORKFLOW.map((step, i) => (
               <div key={step} className="flex flex-1 items-center gap-3 md:flex-col md:gap-2">
-                <div className="flex w-full items-center gap-3 rounded-xl border border-border bg-card/50 p-4 md:flex-col md:text-center">
+                <div className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-4 md:flex-col md:text-center">
                   <span className="flex size-8 items-center justify-center rounded-full bg-primary font-mono text-xs font-bold text-primary-foreground">
                     {i + 1}
                   </span>
@@ -252,7 +273,7 @@ export default function LandingPage() {
         </Section>
 
         {/* ---------- BEFORE VS AFTER ---------- */}
-        <Section eyebrow="Impact" title="Without AI vs With SmartTraffic AI" desc="See the quantified difference AI-powered planning makes for event traffic management.">
+        <Section id="impact" eyebrow="Impact" title="Without AI vs With SmartTraffic AI" desc="See the quantified difference AI-powered planning makes for event traffic management.">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6">
               <div className="mb-4 flex items-center gap-2">
@@ -300,8 +321,8 @@ export default function LandingPage() {
         </Section>
 
         {/* ---------- CTA ---------- */}
-        <div className="relative overflow-hidden rounded-2xl border border-border bg-card/60 p-10 text-center">
-          <div className="absolute inset-0 grid-bg opacity-30" />
+        <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-10 text-center">
+          <div className="absolute inset-0 grid-bg opacity-[0.12]" />
           <div className="relative">
             <LineChart className="mx-auto mb-4 size-8 text-primary" />
             <h2 className="text-balance text-2xl font-semibold md:text-3xl">Ready to forecast your next event?</h2>
@@ -314,7 +335,123 @@ export default function LandingPage() {
           </div>
         </div>
       </div>
+
+      {/* ---------- FOOTER ---------- */}
+      <footer id="about" className="scroll-mt-20 border-t border-border bg-card">
+        <div className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-10 md:flex-row md:items-start md:justify-between">
+          <div className="max-w-sm">
+            <div className="flex items-center gap-2.5">
+              <span className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                <Activity className="size-4" />
+              </span>
+              <span className="text-sm font-semibold">SmartTraffic AI</span>
+            </div>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              Decision-support platform for event-driven traffic forecasting and resource planning — a Smart
+              India Hackathon 2025 prototype built to assist Bengaluru Traffic Police.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-x-12 gap-y-2.5 text-sm">
+            <span className="col-span-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Platform</span>
+            <Link href="/forecast" className="text-muted-foreground transition-colors hover:text-foreground">Forecast</Link>
+            <Link href="/resources" className="text-muted-foreground transition-colors hover:text-foreground">Resources</Link>
+            <Link href="/simulator" className="text-muted-foreground transition-colors hover:text-foreground">Simulator</Link>
+            <Link href="/training" className="text-muted-foreground transition-colors hover:text-foreground">AI Training</Link>
+          </div>
+        </div>
+        <div className="border-t border-border">
+          <div className="mx-auto flex max-w-6xl flex-col gap-2 px-6 py-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <span>© 2025 SmartTraffic AI · Prototype for Bengaluru Traffic Police</span>
+            <span>Built for Smart India Hackathon 2025</span>
+          </div>
+        </div>
+      </footer>
     </div>
+  )
+}
+
+// Hero visual: the photo (public/hero.jpeg) renders on top of an illustrated
+// underlay. The illustration acts as an instant placeholder while the photo
+// decodes, and if the photo is ever missing, onError removes it so the
+// illustration shows through instead of a broken-image icon.
+function HeroImage() {
+  const [failed, setFailed] = useState(false)
+  return (
+    <div className="relative h-full w-full">
+      <div className="absolute inset-0">
+        <TrafficHeroArt />
+      </div>
+      {!failed && (
+        <img
+          src="/hero.jpeg"
+          alt="Bengaluru traffic police officer monitoring city traffic with the SmartTraffic AI app"
+          onError={() => setFailed(true)}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+    </div>
+  )
+}
+
+function TrafficHeroArt() {
+  return (
+    <svg
+      viewBox="0 0 800 600"
+      preserveAspectRatio="xMidYMid slice"
+      className="h-full w-full"
+      role="img"
+      aria-label="Illustration of a traffic officer directing city traffic"
+    >
+      <rect width="800" height="600" fill="var(--muted)" />
+      {/* sun */}
+      <circle cx="130" cy="120" r="64" fill="var(--warning)" opacity="0.22" />
+      {/* skyline */}
+      <g fill="var(--foreground)" opacity="0.1">
+        <rect x="40" y="250" width="70" height="160" />
+        <rect x="125" y="205" width="54" height="205" />
+        <rect x="195" y="275" width="82" height="135" />
+        <rect x="520" y="230" width="58" height="180" />
+        <rect x="592" y="270" width="48" height="140" />
+        <rect x="656" y="200" width="74" height="210" />
+      </g>
+      {/* ground */}
+      <rect x="0" y="410" width="800" height="190" fill="color-mix(in oklch, var(--foreground) 8%, var(--muted))" />
+      {/* road */}
+      <polygon points="330,410 470,410 640,600 160,600" fill="color-mix(in oklch, var(--foreground) 20%, var(--muted))" />
+      <g stroke="var(--warning)" strokeWidth="6" strokeLinecap="round">
+        <line x1="400" y1="430" x2="400" y2="462" />
+        <line x1="400" y1="498" x2="400" y2="538" />
+        <line x1="400" y1="572" x2="400" y2="600" />
+      </g>
+      {/* traffic signal */}
+      <g>
+        <rect x="628" y="360" width="10" height="150" rx="4" fill="var(--foreground)" opacity="0.5" />
+        <rect x="598" y="300" width="70" height="150" rx="16" fill="var(--foreground)" opacity="0.82" />
+        <circle cx="633" cy="335" r="16" fill="var(--destructive)" opacity="0.35" />
+        <circle cx="633" cy="378" r="16" fill="var(--warning)" opacity="0.35" />
+        <circle cx="633" cy="421" r="16" fill="var(--success)" />
+      </g>
+      {/* officer pictogram */}
+      <g>
+        {/* raised signalling arm + glove */}
+        <rect x="298" y="296" width="78" height="16" rx="8" fill="var(--primary)" transform="rotate(-26 376 304)" />
+        <circle cx="300" cy="256" r="13" fill="#ffffff" stroke="var(--primary)" strokeWidth="4" />
+        {/* head + cap */}
+        <circle cx="382" cy="300" r="27" fill="var(--primary)" />
+        <rect x="353" y="276" width="58" height="15" rx="6" fill="var(--foreground)" opacity="0.82" />
+        <rect x="362" y="266" width="40" height="13" rx="6" fill="var(--foreground)" opacity="0.66" />
+        {/* torso */}
+        <rect x="346" y="332" width="72" height="140" rx="26" fill="var(--primary)" />
+        {/* extended arm */}
+        <rect x="408" y="348" width="60" height="15" rx="7" fill="var(--primary)" />
+        {/* legs */}
+        <rect x="354" y="468" width="24" height="92" rx="10" fill="var(--foreground)" opacity="0.78" />
+        <rect x="386" y="468" width="24" height="92" rx="10" fill="var(--foreground)" opacity="0.78" />
+      </g>
+      <text x="400" y="588" textAnchor="middle" fontSize="17" fontWeight="600" fill="var(--muted-foreground)">
+        Guiding city traffic, intelligently
+      </text>
+    </svg>
   )
 }
 
@@ -323,18 +460,20 @@ function Section({
   title,
   desc,
   children,
+  id,
 }: {
   eyebrow: string
   title: string
   desc: string
   children: React.ReactNode
+  id?: string
 }) {
   return (
-    <section>
-      <div className="mb-8 text-center">
-        <p className="font-mono text-xs uppercase tracking-widest text-primary">{eyebrow}</p>
-        <h2 className="mt-2 text-balance text-3xl font-semibold tracking-tight">{title}</h2>
-        <p className="mx-auto mt-2 max-w-2xl text-pretty text-sm text-muted-foreground">{desc}</p>
+    <section id={id} className="scroll-mt-20">
+      <div className="mb-10 text-center">
+        <p className="text-xs font-semibold uppercase tracking-wider text-primary">{eyebrow}</p>
+        <h2 className="mt-2 text-balance text-2xl font-semibold tracking-tight md:text-3xl">{title}</h2>
+        <p className="mx-auto mt-3 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">{desc}</p>
       </div>
       {children}
     </section>

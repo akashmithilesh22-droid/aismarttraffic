@@ -247,9 +247,9 @@ export default function ForecastPage() {
             if (result.plan.officers > 16) {
               alerts.push({
                 icon: <AlertCircle className="size-4 shrink-0" />,
-                color: "text-orange-400",
-                bg: "bg-orange-500/10",
-                border: "border-orange-500/30",
+                color: "text-warning",
+                bg: "bg-warning/10",
+                border: "border-warning/30",
                 title: "Resource Intensity Warning",
                 msg: `${result.plan.officers} officers and ${result.plan.barricades} barricades required — ensure advance procurement and staging.`,
               })
