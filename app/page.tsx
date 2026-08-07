@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { useEngine } from "@/lib/data-provider"
+import { useAuth } from "@/providers/auth-provider"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
@@ -74,6 +75,7 @@ const WORKFLOW = ["Dataset", "Data Processing", "AI Training", "Prediction Engin
 
 export default function LandingPage() {
   const { records, summary, model, loading } = useEngine()
+  const { profile } = useAuth()
 
   const heroStats = [
     { icon: CalendarDays, v: loading ? "…" : records.length.toLocaleString(), l: "Events Analyzed" },
@@ -103,8 +105,20 @@ export default function LandingPage() {
             <a href="#about" className="text-sm font-medium text-foreground/80 transition-colors hover:text-primary">About</a>
           </nav>
           <div className="flex items-center gap-3">
-            <Link href="/forecast" className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'hidden rounded-full sm:inline-flex')}>Login</Link>
-            <Link href="/forecast" className={cn(buttonVariants({ size: 'lg' }), 'gap-1.5 rounded-full')}>Get Started <ArrowRight className="size-4" /></Link>
+            {profile ? (
+              <Link href="/dashboard" className={cn(buttonVariants({ size: "lg" }), "gap-1.5 rounded-full font-semibold shadow-sm")}>
+                Officer Dashboard <ArrowRight className="size-4" />
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "hidden rounded-full sm:inline-flex")}>
+                  Officer Login
+                </Link>
+                <Link href="/dashboard" className={cn(buttonVariants({ size: "lg" }), "gap-1.5 rounded-full")}>
+                  Get Started <ArrowRight className="size-4" />
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>

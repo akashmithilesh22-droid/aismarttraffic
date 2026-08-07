@@ -3,24 +3,43 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { Activity, BrainCircuit, Radar, ShieldAlert, FlaskConical, Home, Cpu, Database } from "lucide-react"
+import {
+  Activity,
+  BrainCircuit,
+  Radar,
+  ShieldAlert,
+  FlaskConical,
+  Home,
+  Cpu,
+  Database,
+  LayoutDashboard,
+  LogIn,
+  Settings
+} from "lucide-react"
 import { useEngine } from "@/lib/data-provider"
+import { useAuth } from "@/providers/auth-provider"
 import { ThemeToggle } from "./theme-toggle"
+import { UserMenu } from "./auth/user-menu"
+import { NotificationDrawer } from "./notifications/notification-drawer"
 
 const NAV = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/training", label: "AI Training Center", icon: BrainCircuit },
-  { href: "/forecast", label: "Forecast Command Center", icon: Radar },
+  { href: "/", label: "Public Home", icon: Home },
+  { href: "/dashboard", label: "Officer Dashboard", icon: LayoutDashboard },
+  { href: "/forecast", label: "Forecast Command", icon: Radar },
   { href: "/resources", label: "Resource Planning", icon: ShieldAlert },
   { href: "/simulator", label: "Simulator & Reports", icon: FlaskConical },
+  { href: "/training", label: "AI Training Center", icon: BrainCircuit },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
   const { records, loading, model } = useEngine()
+  const { user, profile } = useAuth()
+
+  const isSuperAdmin = profile?.role === "Super Admin"
 
   return (
-    <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
+    <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex overflow-y-auto">
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 py-5">
         <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground neon-glow">
@@ -35,7 +54,7 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex flex-1 flex-col gap-1 px-3 py-2">
         {NAV.map((item) => {
-          const active = pathname === item.href
+          const active = pathname === item.href || pathname.startsWith(item.href + '/') && item.href !== '/'
           const Icon = item.icon
           return (
             <Link
@@ -45,7 +64,7 @@ export function Sidebar() {
               className={cn(
                 "relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
                 active
-                  ? "bg-sidebar-accent text-sidebar-foreground"
+                  ? "bg-sidebar-accent text-sidebar-foreground font-semibold"
                   : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
               )}
             >
@@ -55,11 +74,49 @@ export function Sidebar() {
             </Link>
           )
         })}
+
+        {isSuperAdmin && (
+          <>
+            <div className="my-2 h-px bg-border/50" />
+            <Link
+              href="/admin"
+              className={cn(
+                "relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                pathname.startsWith("/admin")
+                  ? "bg-primary/10 text-primary font-semibold"
+                  : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+              )}
+            >
+              {pathname.startsWith("/admin") && <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-r bg-primary" />}
+              <Settings className={cn("size-4 shrink-0", pathname.startsWith("/admin") ? "text-primary" : "text-muted-foreground")} />
+              Administration
+            </Link>
+          </>
+        )}
       </nav>
+
+      {/* Officer User Profile Widget */}
+      <div className="px-3 py-2 space-y-2">
+        {profile ? (
+          <>
+            <div className="flex items-center gap-2">
+              <UserMenu />
+              <NotificationDrawer triggerClassName="shrink-0" />
+            </div>
+          </>
+        ) : (
+          <Link
+            href="/login"
+            className="flex items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/10 p-3 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
+          >
+            <LogIn className="size-4" /> Officer Login
+          </Link>
+        )}
+      </div>
 
       {/* Live stats panel */}
       {!loading && model && (
-        <div className="mx-3 mb-3 rounded-lg border border-border bg-background/40 p-3 space-y-2">
+        <div className="mx-3 mb-2 rounded-lg border border-border bg-background/40 p-3 space-y-2 text-xs">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Live Model Stats</p>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-0.5">
@@ -80,7 +137,7 @@ export function Sidebar() {
       )}
 
       {/* Status footer */}
-      <div className="border-t border-sidebar-border px-5 py-4">
+      <div className="border-t border-sidebar-border px-5 py-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             {loading ? (
@@ -92,7 +149,7 @@ export function Sidebar() {
               <>
                 <Cpu className="size-3 shrink-0 text-accent" />
                 <p className="truncate text-[11px] text-muted-foreground">
-                  Model <span className="text-accent font-semibold">live</span> · {records.length.toLocaleString()} incidents
+                  Model <span className="text-accent font-semibold">live</span>
                 </p>
               </>
             )}

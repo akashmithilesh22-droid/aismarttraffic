@@ -1,14 +1,14 @@
-"use client"
+﻿"use client"
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { BrainCircuit, Radar, ShieldAlert, FlaskConical, Home } from "lucide-react"
+import { Radar, ShieldAlert, FlaskConical, Home, LayoutDashboard } from "lucide-react"
 import { ThemeToggle } from "./theme-toggle"
 
 const NAV = [
   { href: "/", label: "Home", icon: Home },
-  { href: "/training", label: "Training", icon: BrainCircuit },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/forecast", label: "Forecast", icon: Radar },
   { href: "/resources", label: "Resources", icon: ShieldAlert },
   { href: "/simulator", label: "Simulator", icon: FlaskConical },
