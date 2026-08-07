@@ -25,6 +25,7 @@ import { weekdayDistribution, monthlyTrend, hourlyDistribution, avgImpactBy, cou
 import { FlaskConical, FileDown, GitCompareArrows, BarChart3, TrendingUp, Sparkles, FileText, Bot, MapPin } from "lucide-react"
 import { generateReport } from "@/lib/report"
 import { AiAssistant } from "@/components/ai-assistant"
+import { IncidentMap } from "@/components/incident-map"
 
 const C2 = "var(--chart-2)"
 const C1 = "var(--chart-1)"
@@ -255,6 +256,15 @@ export default function SimulatorPage() {
               <GradientBarViz data={priorityDist} />
             </ChartCard>
           </div>
+          <Card className="glass mt-5 p-5">
+            <div className="mb-1 flex items-center gap-2 text-sm font-semibold">
+              <MapPin className="size-4 text-primary" /> Bengaluru Incident Hotspot Map
+            </div>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Geographic distribution of all recorded incidents. Colour indicates congestion impact. Scroll to zoom, drag to pan, hover for details.
+            </p>
+            <IncidentMap records={records} />
+          </Card>
           {monthly.length > 1 && (
             <Card className="glass mt-5 p-5">
               <div className="mb-1 flex items-center gap-2 text-sm font-semibold">

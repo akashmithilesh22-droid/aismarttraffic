@@ -19,7 +19,9 @@ import {
   Search,
   TrendingUp,
   TrendingDown,
+  MapPin,
 } from "lucide-react"
+import { IncidentMap } from "@/components/incident-map"
 import {
   countBy,
   avgImpactBy,
@@ -173,6 +175,20 @@ function TrainingInner() {
             Showing {filteredRows.length} of {summary.totalRecords.toLocaleString()} records · {displayHeaders.length} of{" "}
             {headers.length} columns
           </div>
+        </Card>
+      </section>
+
+      {/* Incident Map */}
+      <section className="space-y-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Incident Hotspot Map</h2>
+        <Card className="p-5">
+          <div className="mb-1 flex items-center gap-2 text-sm font-semibold">
+            <MapPin className="size-4 text-primary" /> Bengaluru Incident Density Map
+          </div>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Geographic distribution of all recorded incidents. Colour indicates congestion impact. Scroll to zoom, drag to pan, hover for details.
+          </p>
+          <IncidentMap records={records} />
         </Card>
       </section>
 
