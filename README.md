@@ -3,6 +3,8 @@
 > **AI-Powered Event Traffic Forecasting & Resource Planning for Bengaluru Traffic Police**
 >
 > A Smart India Hackathon 2025 prototype that turns historical incident data into real-time congestion predictions, optimal officer deployments, and data-driven diversion plans.
+>
+> **Current status:** The app builds successfully with `pnpm build`. The current workspace is using `final-project` as the source of truth, and only safe visual/UI improvements have been reviewed for merge while preserving existing backend, auth, provider, routing, and API logic.
 
 ![SmartTraffic AI Landing Page](./landing.png)
 

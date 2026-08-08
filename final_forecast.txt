@@ -215,14 +215,14 @@ export default function ForecastPage() {
   }
 
   return (
-    <AppShell fullWidth>
+    <AppShell>
       <PageHeader
         page="03"
         title="Forecast Command Center"
         subtitle="Configure an upcoming event and generate a live AI congestion forecast, risk score, and timeline."
       />
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(320px,0.75fr)_minmax(0,2fr)]">
+      <div className="grid gap-3 lg:grid-cols-[320px_1fr]">
         <Card className="glass h-fit p-4">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
             <Sparkles className="size-4 text-primary shrink-0" /> Event Parameters
@@ -429,17 +429,14 @@ export default function ForecastPage() {
               </p>
             </Card>
           </div>
-        </div>
-      </div>
 
-      <div className="grid gap-5">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card className="glass flex flex-col justify-center p-4 text-center">
-            <RiskGauge value={result.impact} />
-            <p className="mt-1 text-xs text-muted-foreground">Impact Score (0-100)</p>
-          </Card>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Card className="glass flex flex-col justify-center p-4 text-center">
+              <RiskGauge value={result.impact} />
+              <p className="mt-1 text-xs text-muted-foreground">Impact Score (0-100)</p>
+            </Card>
 
-          <Card className="glass flex flex-col justify-between p-4">
+            <Card className="glass flex flex-col justify-between p-4">
               <div>
                 <p className="text-xs text-muted-foreground">Risk Level</p>
                 <div className="mt-2">
@@ -663,6 +660,7 @@ export default function ForecastPage() {
             <IncidentMap records={records} />
           </Card>
         </div>
+      </div>
     </AppShell>
   )
 }

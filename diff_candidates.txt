@@ -1,0 +1,825 @@
+﻿diff --git a/app/forecast/page.tsx b/app/forecast/page.tsx
+index b0f91e9..13b0957 100644
+--- a/app/forecast/page.tsx
++++ b/app/forecast/page.tsx
+@@ -1,4 +1,4 @@
+-∩╗┐"use client"
++"use client"
+ 
+ import { useMemo, useState } from "react"
+ import { motion } from "framer-motion"
+@@ -10,7 +10,6 @@ import { predict, recommendResources, riskOf } from "@/lib/model"
+ import type { ForecastInput } from "@/lib/types"
+ import { Card } from "@/components/ui/card"
+ import { Label } from "@/components/ui/label"
+-import { Input } from "@/components/ui/input"
+ import { Slider } from "@/components/ui/slider"
+ import { Switch } from "@/components/ui/switch"
+ import {
+@@ -22,34 +21,17 @@ import {
+ } from "@/components/ui/select"
+ import { RiskGauge, TimelineArea, ContributionBars } from "@/components/charts"
+ import { IncidentMap } from "@/components/incident-map"
+-import { Button, buttonVariants } from "@/components/ui/button"
+ import {
+-  Activity,
+-  MapPin,
+-  Clock,
+-  ShieldAlert,
+-  Sparkles,
+-  Users,
+-  Cone,
+-  ArrowRight,
+-  AlertTriangle,
+-  AlertCircle,
+-  Info,
+-  Save,
+-  CheckCircle2,
+-  Loader2,
+-  Map,
++  Activity, MapPin, Clock, ShieldAlert, Sparkles,
++  Users, Cone, ArrowRight, AlertTriangle, AlertCircle, Info, Map,
+ } from "lucide-react"
+ import Link from "next/link"
++import { buttonVariants } from "@/components/ui/button"
+ import { cn } from "@/lib/utils"
+-import { toast } from "sonner"
+ 
+ export default function ForecastPage() {
+   const { loading, model, options, junctionLookup, records } = useEngine()
+   const [input, setInput] = useState<ForecastInput | null>(null)
+-  const [eventTitle, setEventTitle] = useState("")
+-  const [isSaving, setIsSaving] = useState(false)
+-  const [savedEventId, setSavedEventId] = useState<string | null>(null)
+ 
+   const defaults = useMemo<ForecastInput | null>(() => {
+     if (!options.causes.length) return null
+@@ -106,7 +88,6 @@ export default function ForecastPage() {
+       newInput.junction = available[0] ?? ""
+     }
+     setInput(newInput)
+-    setSavedEventId(null)
+   }
+ 
+   const setStr = (key: "cause" | "corridor" | "zone" | "junction" | "priority" | "eventType") =>
+@@ -114,106 +95,33 @@ export default function ForecastPage() {
+   const setNum = (key: "hour" | "durationMin") => (v: number | readonly number[]) =>
+     update(key, Array.isArray(v) ? v[0] : (v as number))
+ 
++  // Build alerts
+   const alerts: { icon: React.ReactNode; color: string; bg: string; border: string; title: string; msg: string }[] = []
+   if (result.risk === "Critical" || result.risk === "High") {
+     alerts.push({
+       icon: <AlertTriangle className="size-4 shrink-0" />,
+-      color: "text-destructive",
+-      bg: "bg-destructive/10",
+-      border: "border-destructive/30",
++      color: "text-destructive", bg: "bg-destructive/10", border: "border-destructive/30",
+       title: `${result.risk} Risk Alert`,
+       msg: `Predicted impact ${result.impact}/100 ΓÇö severe congestion expected. Immediate resource staging recommended.`,
+     })
+   }
+-
+   if (result.plan.officers > 16) {
+     alerts.push({
+       icon: <AlertCircle className="size-4 shrink-0" />,
+-      color: "text-warning",
+-      bg: "bg-warning/10",
+-      border: "border-warning/30",
++      color: "text-warning", bg: "bg-warning/10", border: "border-warning/30",
+       title: "Resource Intensity Warning",
+       msg: `${result.plan.officers} officers and ${result.plan.barricades} barricades required ΓÇö ensure advance procurement and staging.`,
+     })
+   }
+-
+   if (result.plan.diversions > 0) {
+     alerts.push({
+       icon: <Info className="size-4 shrink-0" />,
+-      color: "text-accent",
+-      bg: "bg-accent/10",
+-      border: "border-accent/30",
++      color: "text-accent", bg: "bg-accent/10", border: "border-accent/30",
+       title: "Diversion Recommended",
+       msg: `${result.plan.diversions} alternate diversion route(s) suggested ΓÇö coordinate with neighbouring zones for smooth traffic flow.`,
+     })
+   }
+ 
+-  const handleSaveAndForecast = async () => {
+-    setIsSaving(true)
+-    setSavedEventId(null)
+-
+-    try {
+-      const titleToUse = eventTitle.trim() || `${active.cause.toUpperCase()} at ${active.junction || active.corridor}`
+-
+-      const eventRes = await fetch("/api/events", {
+-        method: "POST",
+-        headers: { "Content-Type": "application/json" },
+-        body: JSON.stringify({
+-          title: titleToUse,
+-          event_type: active.cause,
+-          priority: active.priority,
+-          location: active.junction || active.corridor,
+-          corridor: active.corridor,
+-          junction: active.junction,
+-          zone: active.zone,
+-          police_station: result.policeStationRec.primary || "Bengaluru Central",
+-          event_date: new Date().toISOString().split("T")[0],
+-          event_time: `${String(active.hour).padStart(2, "0")}:00`,
+-          duration_minutes: active.durationMin,
+-          requires_closure: active.requiresClosure,
+-        }),
+-      })
+-
+-      const eventData = await eventRes.json()
+-      if (!eventRes.ok || !eventData.event) {
+-        throw new Error(eventData.error || "Failed to create event in Supabase")
+-      }
+-
+-      const eventId = eventData.event.id
+-
+-      const predRes = await fetch("/api/predictions", {
+-        method: "POST",
+-        headers: { "Content-Type": "application/json" },
+-        body: JSON.stringify({
+-          event_id: eventId,
+-          impact_score: result.impact,
+-          risk_level: result.risk,
+-          confidence: result.confidence,
+-          estimated_clearance: active.durationMin,
+-          timeline_json: result.timeline,
+-          feature_importance_json: result.contributions,
+-          similar_events_json: result.similar,
+-          resource_plan: result.plan,
+-        }),
+-      })
+-
+-      const predData = await predRes.json()
+-      if (!predRes.ok) {
+-        throw new Error(predData.error || "Failed to save prediction to Supabase")
+-      }
+-
+-      setSavedEventId(eventId)
+-      toast.success("Forecast & Event Saved", {
+-        description: `Event persistent ID #${eventId.substring(0, 8)} stored in Supabase PostgreSQL.`,
+-      })
+-    } catch (err: unknown) {
+-      const msg = err instanceof Error ? err.message : "Error saving forecast"
+-      toast.error("Save Error", { description: msg })
+-    } finally {
+-      setIsSaving(false)
+-    }
+-  }
+-
+   return (
+     <AppShell>
+       <PageHeader
+@@ -223,22 +131,13 @@ export default function ForecastPage() {
+       />
+ 
+       <div className="grid gap-3 lg:grid-cols-[320px_1fr]">
++        {/* ΓöÇΓöÇ Input panel ΓöÇΓöÇ */}
+         <Card className="glass h-fit p-4">
+           <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+             <Sparkles className="size-4 text-primary shrink-0" /> Event Parameters
+           </div>
+ 
+           <div className="flex flex-col gap-2.5">
+-            <div>
+-              <Label className="text-xs">Event Name / Label</Label>
+-              <Input
+-                placeholder="e.g. Political Rally at Freedom Park"
+-                value={eventTitle}
+-                onChange={(e) => setEventTitle(e.target.value)}
+-                className="mt-1 bg-background/60"
+-              />
+-            </div>
+-
+             <Field label="Event Cause" icon={<Activity className="size-3.5" />}>
+               <Select value={active.cause} onValueChange={setStr("cause")}>
+                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+@@ -288,7 +187,7 @@ export default function ForecastPage() {
+                 <Select value={active.priority} onValueChange={setStr("priority")}>
+                   <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                   <SelectContent>
+-                    {options.priorities.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
++                    {options.priorities.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                   </SelectContent>
+                 </Select>
+               </Field>
+@@ -317,37 +216,13 @@ export default function ForecastPage() {
+               </div>
+               <Switch checked={active.requiresClosure} onCheckedChange={(v) => update("requiresClosure", v)} />
+             </div>
+-
+-            <div className="pt-3 space-y-2">
+-              <Button
+-                onClick={handleSaveAndForecast}
+-                disabled={isSaving}
+-                className="w-full gap-2 font-semibold shadow-md"
+-              >
+-                {isSaving ? (
+-                  <>
+-                    <Loader2 className="size-4 animate-spin" /> Saving to Supabase...
+-                  </>
+-                ) : (
+-                  <>
+-                    <Save className="size-4" /> Save Event & Persist Forecast
+-                  </>
+-                )}
+-              </Button>
+-
+-              {savedEventId && (
+-                <Link
+-                  href={`/events/${savedEventId}`}
+-                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full gap-2 border-emerald-500/40 text-emerald-500 hover:bg-emerald-500/10")}
+-                >
+-                  <CheckCircle2 className="size-3.5" /> View Saved Event Details (#{savedEventId.substring(0, 8)})
+-                </Link>
+-              )}
+-            </div>
+           </div>
+         </Card>
+ 
++        {/* ΓöÇΓöÇ Right column ΓöÇΓöÇ */}
+         <div className="flex flex-col gap-5">
++
++          {/* Smart alerts */}
+           {alerts.length > 0 && (
+             <div className="flex flex-col gap-2">
+               {alerts.map((a, i) => (
+@@ -368,6 +243,7 @@ export default function ForecastPage() {
+             </div>
+           )}
+ 
++          {/* Impact gauge + timeline */}
+           <div className="grid gap-5 md:grid-cols-[240px_1fr]">
+             <Card className="glass flex flex-col items-center justify-center p-5">
+               <span className="text-xs uppercase tracking-wider text-muted-foreground">Predicted Impact</span>
+@@ -424,132 +300,25 @@ export default function ForecastPage() {
+                   ))}
+                 </div>
+               </div>
+-              <p className="text-[11px] text-muted-foreground mt-2">
+-                Assigned station in charge
+-              </p>
+-            </Card>
+-          </div>
+-
+-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+-            <Card className="glass flex flex-col justify-center p-4 text-center">
+-              <RiskGauge value={result.impact} />
+-              <p className="mt-1 text-xs text-muted-foreground">Impact Score (0-100)</p>
+-            </Card>
+-
+-            <Card className="glass flex flex-col justify-between p-4">
+-              <div>
+-                <p className="text-xs text-muted-foreground">Risk Level</p>
+-                <div className="mt-2">
+-                  <RiskBadge level={result.risk} large />
+-                </div>
+-              </div>
+-              <p className="text-[11px] text-muted-foreground mt-2">
+-                Based on historical impact analysis
+-              </p>
+-            </Card>
+-
+-            <Card className="glass flex flex-col justify-between p-4">
+-              <div>
+-                <p className="text-xs text-muted-foreground">Confidence Score</p>
+-                <p className="mt-1 font-mono text-3xl font-extrabold text-foreground">
+-                  {Math.round(result.confidence)}%
+-                </p>
+-              </div>
+-              <p className="text-[11px] text-muted-foreground mt-2">
+-                Derived from ensemble variance
+-              </p>
+-            </Card>
+-
+-            <Card className="glass flex flex-col justify-between p-4">
+-              <div>
+-                <p className="text-xs text-muted-foreground">Primary Police Station</p>
+-                <p className="mt-1 text-sm font-bold text-primary truncate">
+-                  {result.policeStationRec.primary || "Indiranagar Traffic PS"}
+-                </p>
+-              </div>
+-              <p className="text-[11px] text-muted-foreground mt-2">
+-                Assigned station in charge
+-              </p>
+             </Card>
+           </div>
+ 
+-          <Card className="glass p-5">
+-            <div className="mb-3 flex items-center justify-between">
+-              <div>
+-                <h3 className="text-sm font-bold">24-Hour Congestion Timeline</h3>
+-                <p className="text-xs text-muted-foreground">
+-                  Hourly predicted congestion percentage across peak window
+-                </p>
+-              </div>
+-              <span className="flex items-center gap-1 text-xs font-semibold text-primary">
+-                <Clock className="size-3.5" /> Peak at {active.hour}:00
+-              </span>
+-            </div>
+-            <div className="h-56">
+-              <TimelineArea data={result.timeline} />
+-            </div>
+-          </Card>
+-
+-          <Card className="glass p-5">
+-            <div className="mb-3">
+-              <h3 className="text-sm font-bold">SHAP-Style Feature Contributions</h3>
+-              <p className="text-xs text-muted-foreground">
+-                How each input parameter contributed to increasing or decreasing the impact score
+-              </p>
+-            </div>
+-            <ContributionBars data={result.contributions} />
+-          </Card>
+-
+-          <Card className="glass p-5 space-y-4">
+-            <div className="flex items-center justify-between">
+-              <div>
+-                <h3 className="text-sm font-bold">Recommended Resource Deployment</h3>
+-                <p className="text-xs text-muted-foreground">
+-                  AI-computed manpower, barricading, and emergency units
+-                </p>
+-              </div>
+-              <Link href="/resources" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5 text-xs")}>
+-                Full Resource View <ArrowRight className="size-3.5" />
+-              </Link>
+-            </div>
+-
+-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+-              <div className="rounded-xl border border-border/60 bg-background/40 p-3 text-center">
+-                <Users className="mx-auto size-5 text-primary" />
+-                <p className="mt-1 font-mono text-xl font-bold">{result.plan.officers}</p>
+-                <p className="text-[11px] text-muted-foreground">Traffic Officers</p>
+-              </div>
+-              <div className="rounded-xl border border-border/60 bg-background/40 p-3 text-center">
+-                <Cone className="mx-auto size-5 text-amber-500" />
+-                <p className="mt-1 font-mono text-xl font-bold">{result.plan.barricades}</p>
+-                <p className="text-[11px] text-muted-foreground">Barricades</p>
+-              </div>
+-              <div className="rounded-xl border border-border/60 bg-background/40 p-3 text-center">
+-                <ShieldAlert className="mx-auto size-5 text-sky-500" />
+-                <p className="mt-1 font-mono text-xl font-bold">{result.plan.checkpoints}</p>
+-                <p className="text-[11px] text-muted-foreground">Checkpoints</p>
+-              </div>
+-              <div className="rounded-xl border border-border/60 bg-background/40 p-3 text-center">
+-                <Activity className="mx-auto size-5 text-emerald-500" />
+-                <p className="mt-1 font-mono text-xl font-bold">{result.plan.diversions}</p>
+-                <p className="text-[11px] text-muted-foreground">Diversion Routes</p>
+-              </div>
+-            </div>
+-          </Card>
+-
++          {/* Why / Station / Resources */}
+           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
++            {/* Why this prediction */}
+             <Card className="glass flex flex-col p-6">
+               <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                 <Sparkles className="size-4 text-primary" /> Why this prediction
+               </div>
+               <p className="mb-4 text-xs leading-relaxed text-muted-foreground">
+-                Each factor's contribution to the risk score (explainable AI).
++                Each factor&apos;s contribution to the risk score (explainable AI).
+               </p>
+               <div className="flex-1" style={{ minHeight: 300 }}>
+                 <ContributionBars data={result.contributions} />
+               </div>
+             </Card>
+ 
++            {/* Responsible Police Station */}
+             <Card className="glass flex flex-col p-6">
+               <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                 <ShieldAlert className="size-4 text-primary" /> Responsible Police Station
+@@ -597,6 +366,7 @@ export default function ForecastPage() {
+               </div>
+             </Card>
+ 
++            {/* Quick Resource Snapshot */}
+             <Card className="glass flex flex-col p-6">
+               <div className="mb-5 flex items-center justify-between">
+                 <div className="flex items-center gap-2 text-sm font-semibold">
+@@ -613,11 +383,13 @@ export default function ForecastPage() {
+                 <SnapStat label="Diversions" value={result.plan.diversions} icon={<MapPin className="size-5" />} />
+               </div>
+               <div className="mt-4 rounded-xl border border-border bg-background/40 px-4 py-3 text-sm text-muted-foreground">
+-                Barricade intensity: <span className="font-semibold text-foreground">{result.plan.barricadeIntensity}</span>
++                Barricade intensity:{" "}
++                <span className="font-semibold text-foreground">{result.plan.barricadeIntensity}</span>
+               </div>
+             </Card>
+           </div>
+ 
++          {/* Similar historical incidents */}
+           <Card className="glass p-5">
+             <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+               <Activity className="size-4 text-primary" /> Most Similar Historical Incidents
+@@ -634,7 +406,7 @@ export default function ForecastPage() {
+                     transition={{ delay: i * 0.05 }}
+                     className="flex items-center gap-3 rounded-lg border border-border bg-background/40 px-3 py-2.5"
+                   >
+-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/15 text-xs font-bold text-primary">
++                    <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/15 text-xs font-bold text-primary">
+                       {s.similarity}%
+                     </div>
+                     <div className="min-w-0 flex-1">
+@@ -650,6 +422,7 @@ export default function ForecastPage() {
+             </div>
+           </Card>
+ 
++          {/* Incident Heatmap */}
+           <Card className="glass p-5">
+             <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+               <Map className="size-4 text-primary" /> Area-Wide Incident Heatmap
+@@ -659,6 +432,7 @@ export default function ForecastPage() {
+             </p>
+             <IncidentMap records={records} />
+           </Card>
++
+         </div>
+       </div>
+     </AppShell>
+diff --git a/app/layout.tsx b/app/layout.tsx
+index cf40142..fd30c69 100644
+--- a/app/layout.tsx
++++ b/app/layout.tsx
+@@ -1,53 +1,51 @@
+-import { Analytics } from "@vercel/analytics/next"
+-import type { Metadata, Viewport } from "next"
+-import { Geist, Geist_Mono, Poppins } from "next/font/google"
+-import "./globals.css"
+-import { DataProvider } from "@/lib/data-provider"
+-import { AuthProvider } from "@/providers/auth-provider"
+-import { RealtimeProvider } from "@/providers/realtime-provider"
+-import { ThemeProvider } from "@/components/theme-provider"
+-import { Toaster } from "@/components/ui/sonner"
++import { Analytics } from '@vercel/analytics/next'
++import type { Metadata, Viewport } from 'next'
++import { Geist, Geist_Mono, Poppins } from 'next/font/google'
++import './globals.css'
++import { DataProvider } from '@/lib/data-provider'
++import { ThemeProvider } from '@/components/theme-provider'
++import { Toaster } from '@/components/ui/sonner'
+ 
+-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] })
++const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
+ const geistMono = Geist_Mono({
+-  variable: "--font-geist-mono",
+-  subsets: ["latin"],
++  variable: '--font-geist-mono',
++  subsets: ['latin'],
+ })
+ const poppins = Poppins({
+-  variable: "--font-poppins",
+-  subsets: ["latin"],
+-  weight: ["400", "500", "600", "700", "800"],
++  variable: '--font-poppins',
++  subsets: ['latin'],
++  weight: ['400', '500', '600', '700', '800'],
+ })
+ 
+ export const metadata: Metadata = {
+-  title: "SmartTraffic AI ΓÇö Event Traffic Forecasting & Resource Planning",
++  title: 'SmartTraffic AI ΓÇö Event Traffic Forecasting & Resource Planning',
+   description:
+-    "AI-powered platform that forecasts event-driven traffic congestion and recommends optimal manpower, barricading, and diversion plans from real historical incident data.",
+-  generator: "v0.app",
++    'AI-powered platform that forecasts event-driven traffic congestion and recommends optimal manpower, barricading, and diversion plans from real historical incident data.',
++  generator: 'v0.app',
+   icons: {
+     icon: [
+       {
+-        url: "/icon-light-32x32.png",
+-        media: "(prefers-color-scheme: light)",
++        url: '/icon-light-32x32.png',
++        media: '(prefers-color-scheme: light)',
+       },
+       {
+-        url: "/icon-dark-32x32.png",
+-        media: "(prefers-color-scheme: dark)",
++        url: '/icon-dark-32x32.png',
++        media: '(prefers-color-scheme: dark)',
+       },
+       {
+-        url: "/icon.svg",
+-        type: "image/svg+xml",
++        url: '/icon.svg',
++        type: 'image/svg+xml',
+       },
+     ],
+-    apple: "/apple-icon.png",
++    apple: '/apple-icon.png',
+   },
+ }
+ 
+ export const viewport: Viewport = {
+-  colorScheme: "light dark",
++  colorScheme: 'light dark',
+   themeColor: [
+-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+-    { media: "(prefers-color-scheme: dark)", color: "#12151d" },
++    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
++    { media: '(prefers-color-scheme: dark)', color: '#12151d' },
+   ],
+ }
+ 
+@@ -60,14 +58,10 @@ export default function RootLayout({
+     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${poppins.variable} bg-background`} suppressHydrationWarning>
+       <body className="font-sans antialiased" suppressHydrationWarning>
+         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+-          <AuthProvider>
+-            <RealtimeProvider>
+-              <DataProvider>{children}</DataProvider>
+-            </RealtimeProvider>
+-          </AuthProvider>
++          <DataProvider>{children}</DataProvider>
+           <Toaster position="top-right" />
+         </ThemeProvider>
+-        {process.env.NODE_ENV === "production" && <Analytics />}
++        {process.env.NODE_ENV === 'production' && <Analytics />}
+       </body>
+     </html>
+   )
+diff --git a/app/page.tsx b/app/page.tsx
+index 2b49cf3..513044b 100644
+--- a/app/page.tsx
++++ b/app/page.tsx
+@@ -4,7 +4,6 @@ import Link from "next/link"
+ import { useState } from "react"
+ import { motion } from "framer-motion"
+ import { useEngine } from "@/lib/data-provider"
+-import { useAuth } from "@/providers/auth-provider"
+ import { buttonVariants } from "@/components/ui/button"
+ import { cn } from "@/lib/utils"
+ import {
+@@ -75,7 +74,6 @@ const WORKFLOW = ["Dataset", "Data Processing", "AI Training", "Prediction Engin
+ 
+ export default function LandingPage() {
+   const { records, summary, model, loading } = useEngine()
+-  const { profile } = useAuth()
+ 
+   const heroStats = [
+     { icon: CalendarDays, v: loading ? "ΓÇª" : records.length.toLocaleString(), l: "Events Analyzed" },
+@@ -105,20 +103,8 @@ export default function LandingPage() {
+             <a href="#about" className="text-sm font-medium text-foreground/80 transition-colors hover:text-primary">About</a>
+           </nav>
+           <div className="flex items-center gap-3">
+-            {profile ? (
+-              <Link href="/dashboard" className={cn(buttonVariants({ size: "lg" }), "gap-1.5 rounded-full font-semibold shadow-sm")}>
+-                Officer Dashboard <ArrowRight className="size-4" />
+-              </Link>
+-            ) : (
+-              <>
+-                <Link href="/login" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "hidden rounded-full sm:inline-flex")}>
+-                  Officer Login
+-                </Link>
+-                <Link href="/dashboard" className={cn(buttonVariants({ size: "lg" }), "gap-1.5 rounded-full")}>
+-                  Get Started <ArrowRight className="size-4" />
+-                </Link>
+-              </>
+-            )}
++            <Link href="/forecast" className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'hidden rounded-full sm:inline-flex')}>Login</Link>
++            <Link href="/forecast" className={cn(buttonVariants({ size: 'lg' }), 'gap-1.5 rounded-full')}>Get Started <ArrowRight className="size-4" /></Link>
+           </div>
+         </div>
+       </header>
+diff --git a/components/mobile-nav.tsx b/components/mobile-nav.tsx
+index 3876050..5c342f7 100644
+--- a/components/mobile-nav.tsx
++++ b/components/mobile-nav.tsx
+@@ -1,14 +1,14 @@
+-∩╗┐"use client"
++"use client"
+ 
+ import Link from "next/link"
+ import { usePathname } from "next/navigation"
+ import { cn } from "@/lib/utils"
+-import { Radar, ShieldAlert, FlaskConical, Home, LayoutDashboard } from "lucide-react"
++import { BrainCircuit, Radar, ShieldAlert, FlaskConical, Home } from "lucide-react"
+ import { ThemeToggle } from "./theme-toggle"
+ 
+ const NAV = [
+   { href: "/", label: "Home", icon: Home },
+-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
++  { href: "/training", label: "Training", icon: BrainCircuit },
+   { href: "/forecast", label: "Forecast", icon: Radar },
+   { href: "/resources", label: "Resources", icon: ShieldAlert },
+   { href: "/simulator", label: "Simulator", icon: FlaskConical },
+diff --git a/components/sidebar.tsx b/components/sidebar.tsx
+index 83f7f41..abd6000 100644
+--- a/components/sidebar.tsx
++++ b/components/sidebar.tsx
+@@ -3,43 +3,24 @@
+ import Link from "next/link"
+ import { usePathname } from "next/navigation"
+ import { cn } from "@/lib/utils"
+-import {
+-  Activity,
+-  BrainCircuit,
+-  Radar,
+-  ShieldAlert,
+-  FlaskConical,
+-  Home,
+-  Cpu,
+-  Database,
+-  LayoutDashboard,
+-  LogIn,
+-  Settings
+-} from "lucide-react"
++import { Activity, BrainCircuit, Radar, ShieldAlert, FlaskConical, Home, Cpu, Database } from "lucide-react"
+ import { useEngine } from "@/lib/data-provider"
+-import { useAuth } from "@/providers/auth-provider"
+ import { ThemeToggle } from "./theme-toggle"
+-import { UserMenu } from "./auth/user-menu"
+-import { NotificationDrawer } from "./notifications/notification-drawer"
+ 
+ const NAV = [
+-  { href: "/", label: "Public Home", icon: Home },
+-  { href: "/dashboard", label: "Officer Dashboard", icon: LayoutDashboard },
+-  { href: "/forecast", label: "Forecast Command", icon: Radar },
++  { href: "/", label: "Home", icon: Home },
++  { href: "/training", label: "AI Training Center", icon: BrainCircuit },
++  { href: "/forecast", label: "Forecast Command Center", icon: Radar },
+   { href: "/resources", label: "Resource Planning", icon: ShieldAlert },
+   { href: "/simulator", label: "Simulator & Reports", icon: FlaskConical },
+-  { href: "/training", label: "AI Training Center", icon: BrainCircuit },
+ ]
+ 
+ export function Sidebar() {
+   const pathname = usePathname()
+   const { records, loading, model } = useEngine()
+-  const { user, profile } = useAuth()
+-
+-  const isSuperAdmin = profile?.role === "Super Admin"
+ 
+   return (
+-    <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex overflow-y-auto">
++    <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
+       {/* Logo */}
+       <div className="flex items-center gap-2.5 px-5 py-5">
+         <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground neon-glow">
+@@ -54,7 +35,7 @@ export function Sidebar() {
+       {/* Navigation */}
+       <nav className="flex flex-1 flex-col gap-1 px-3 py-2">
+         {NAV.map((item) => {
+-          const active = pathname === item.href || pathname.startsWith(item.href + '/') && item.href !== '/'
++          const active = pathname === item.href
+           const Icon = item.icon
+           return (
+             <Link
+@@ -64,7 +45,7 @@ export function Sidebar() {
+               className={cn(
+                 "relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                 active
+-                  ? "bg-sidebar-accent text-sidebar-foreground font-semibold"
++                  ? "bg-sidebar-accent text-sidebar-foreground"
+                   : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+               )}
+             >
+@@ -74,49 +55,11 @@ export function Sidebar() {
+             </Link>
+           )
+         })}
+-
+-        {isSuperAdmin && (
+-          <>
+-            <div className="my-2 h-px bg-border/50" />
+-            <Link
+-              href="/admin"
+-              className={cn(
+-                "relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+-                pathname.startsWith("/admin")
+-                  ? "bg-primary/10 text-primary font-semibold"
+-                  : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+-              )}
+-            >
+-              {pathname.startsWith("/admin") && <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-r bg-primary" />}
+-              <Settings className={cn("size-4 shrink-0", pathname.startsWith("/admin") ? "text-primary" : "text-muted-foreground")} />
+-              Administration
+-            </Link>
+-          </>
+-        )}
+       </nav>
+ 
+-      {/* Officer User Profile Widget */}
+-      <div className="px-3 py-2 space-y-2">
+-        {profile ? (
+-          <>
+-            <div className="flex items-center gap-2">
+-              <UserMenu />
+-              <NotificationDrawer triggerClassName="shrink-0" />
+-            </div>
+-          </>
+-        ) : (
+-          <Link
+-            href="/login"
+-            className="flex items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/10 p-3 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
+-          >
+-            <LogIn className="size-4" /> Officer Login
+-          </Link>
+-        )}
+-      </div>
+-
+       {/* Live stats panel */}
+       {!loading && model && (
+-        <div className="mx-3 mb-2 rounded-lg border border-border bg-background/40 p-3 space-y-2 text-xs">
++        <div className="mx-3 mb-3 rounded-lg border border-border bg-background/40 p-3 space-y-2">
+           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Live Model Stats</p>
+           <div className="grid grid-cols-2 gap-2">
+             <div className="space-y-0.5">
+@@ -137,7 +80,7 @@ export function Sidebar() {
+       )}
+ 
+       {/* Status footer */}
+-      <div className="border-t border-sidebar-border px-5 py-3">
++      <div className="border-t border-sidebar-border px-5 py-4">
+         <div className="flex items-center justify-between gap-2">
+           <div className="flex min-w-0 items-center gap-2">
+             {loading ? (
+@@ -149,7 +92,7 @@ export function Sidebar() {
+               <>
+                 <Cpu className="size-3 shrink-0 text-accent" />
+                 <p className="truncate text-[11px] text-muted-foreground">
+-                  Model <span className="text-accent font-semibold">live</span>
++                  Model <span className="text-accent font-semibold">live</span> ┬╖ {records.length.toLocaleString()} incidents
+                 </p>
+               </>
+             )}
+diff --git a/components/ui/button.tsx b/components/ui/button.tsx
+index b033601..b33b188 100644
+--- a/components/ui/button.tsx
++++ b/components/ui/button.tsx
+@@ -1,49 +1,49 @@
+-import { Button as ButtonPrimitive } from "@base-ui/react/button"
+-import { cva, type VariantProps } from "class-variance-authority"
++import { Button as ButtonPrimitive } from '@base-ui/react/button'
++import { cva, type VariantProps } from 'class-variance-authority'
+ 
+-import { cn } from "@/lib/utils"
++import { cn } from '@/lib/utils'
+ 
+ const buttonVariants = cva(
+   "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+   {
+     variants: {
+       variant: {
+-        default: "bg-primary text-primary-foreground hover:bg-primary/80",
++        default: 'bg-primary text-primary-foreground hover:bg-primary/90 [a]:hover:bg-primary/90',
+         outline:
+-          "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
++          'border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50',
+         secondary:
+-          "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
++          'bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground',
+         ghost:
+-          "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
++          'hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50',
+         destructive:
+-          "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
+-        link: "text-primary underline-offset-4 hover:underline",
++          'bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40',
++        link: 'text-primary underline-offset-4 hover:underline',
+       },
+       size: {
+         default:
+-          "h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
+-        xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
+-        sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
+-        lg: "h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
+-        icon: "size-8",
+-        "icon-xs":
++          'h-9 gap-2 px-4 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3',
++        xs: "h-7 gap-1 rounded-[min(var(--radius-md),10px)] px-2.5 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
++        sm: "h-8 gap-1.5 rounded-[min(var(--radius-md),12px)] px-3 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 [&_svg:not([class*='size-'])]:size-3.5",
++        lg: 'h-11 gap-2 px-6 text-sm has-data-[icon=inline-end]:pr-4 has-data-[icon=inline-start]:pl-4',
++        icon: 'size-9',
++        'icon-xs':
+           "size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
+-        "icon-sm":
+-          "size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg",
+-        "icon-lg": "size-9",
++        'icon-sm':
++          'size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg',
++        'icon-lg': 'size-9',
+       },
+     },
+     defaultVariants: {
+-      variant: "default",
+-      size: "default",
++      variant: 'default',
++      size: 'default',
+     },
+-  }
++  },
+ )
+ 
+ function Button({
+   className,
+-  variant = "default",
+-  size = "default",
++  variant = 'default',
++  size = 'default',
+   ...props
+ }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+   return (

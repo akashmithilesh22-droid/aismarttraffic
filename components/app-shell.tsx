@@ -5,8 +5,9 @@ import { Sidebar } from "./sidebar"
 import { MobileNav } from "./mobile-nav"
 import { useEngine } from "@/lib/data-provider"
 import { Activity } from "lucide-react"
+import { cn } from "@/lib/utils"
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, fullWidth = false }: { children: ReactNode; fullWidth?: boolean }) {
   const { loading, error } = useEngine()
   return (
     <div className="flex min-h-svh bg-background">
@@ -23,7 +24,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <p className="text-sm">Loading dataset & training model…</p>
             </div>
           ) : (
-            <div className="mx-auto max-w-7xl space-y-8">{children}</div>
+            <div className={cn("mx-auto space-y-8", fullWidth ? "max-w-full" : "max-w-7xl")}>{children}</div>
           )}
         </main>
         <MobileNav />

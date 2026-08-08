@@ -123,7 +123,8 @@ export default function SimulatorPage() {
   const betterScenario = avgImpactA <= avgImpactB ? "A" : "B"
 
   return (
-    <AppShell>
+    <AppShell fullWidth>
+      <div className="w-full min-w-0">
       <PageHeader
         page="05"
         title="Simulator &amp; Reports"
@@ -134,8 +135,8 @@ export default function SimulatorPage() {
         </Button>
       </PageHeader>
 
-      <Tabs defaultValue="simulator">
-        <TabsList className="mb-5 flex-wrap">
+      <Tabs defaultValue="simulator" className="!flex !w-full !min-w-0 !flex-col gap-0">
+        <TabsList className="mb-5 w-fit max-w-full flex-wrap">
           <TabsTrigger value="simulator" className="gap-1.5"><GitCompareArrows className="size-4" /> What-If Comparison</TabsTrigger>
           <TabsTrigger value="analytics" className="gap-1.5"><BarChart3 className="size-4" /> Historical Analytics</TabsTrigger>
           <TabsTrigger value="assistant" className="gap-1.5"><Bot className="size-4" /> AI Assistant</TabsTrigger>
@@ -143,8 +144,8 @@ export default function SimulatorPage() {
         </TabsList>
 
         {/* ---------------- simulator ---------------- */}
-        <TabsContent value="simulator">
-          <div className="grid gap-5 lg:grid-cols-2">
+        <TabsContent value="simulator" className="!m-0 !w-full !max-w-none">
+          <div className="w-full min-w-0 grid gap-5 lg:grid-cols-2">
             <ScenarioPanel
               title="Scenario A"
               accent={C1}
@@ -166,7 +167,7 @@ export default function SimulatorPage() {
           </div>
 
           {/* comparison */}
-          <Card className="glass mt-5 p-5">
+          <Card className="glass w-full min-w-0 mt-5 p-5">
             <div className="mb-4 flex items-center gap-2 text-sm font-semibold">
               <GitCompareArrows className="size-4 text-primary" /> Head-to-Head Comparison
             </div>
@@ -191,11 +192,11 @@ export default function SimulatorPage() {
           </Card>
 
           {/* Before vs After AI */}
-          <Card className="glass mt-5 p-5">
+          <Card className="glass w-full min-w-0 mt-5 p-5">
             <div className="mb-4 flex items-center gap-2 text-sm font-semibold">
               <Sparkles className="size-4 text-primary" /> Without AI Planning vs With SmartTraffic AI
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="w-full min-w-0 grid gap-4 md:grid-cols-2">
               <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-destructive">Without AI Planning</p>
                 <div className="space-y-2">
@@ -235,8 +236,8 @@ export default function SimulatorPage() {
         </TabsContent>
 
         {/* ---------------- analytics ---------------- */}
-        <TabsContent value="analytics">
-          <div className="grid gap-5 lg:grid-cols-2">
+        <TabsContent value="analytics" className="!m-0 !w-full !max-w-none">
+          <div className="w-full min-w-0 grid gap-5 lg:grid-cols-2">
             <ChartCard title="Incidents by Hour of Day" icon={<TrendingUp className="size-4 text-primary" />} desc="When incidents are most frequent across the day.">
               <AreaViz data={hourly.map((h) => ({ hour: `${String(h.hour).padStart(2, "0")}h`, congestion: h.count }))} dataKey="congestion" xKey="hour" color={C1} />
             </ChartCard>
@@ -256,7 +257,7 @@ export default function SimulatorPage() {
               <GradientBarViz data={priorityDist} />
             </ChartCard>
           </div>
-          <Card className="glass mt-5 p-5">
+          <Card className="glass w-full min-w-0 mt-5 p-5">
             <div className="mb-1 flex items-center gap-2 text-sm font-semibold">
               <MapPin className="size-4 text-primary" /> Bengaluru Incident Hotspot Map
             </div>
@@ -266,7 +267,7 @@ export default function SimulatorPage() {
             <IncidentMap records={records} />
           </Card>
           {monthly.length > 1 && (
-            <Card className="glass mt-5 p-5">
+            <Card className="glass w-full min-w-0 mt-5 p-5">
               <div className="mb-1 flex items-center gap-2 text-sm font-semibold">
                 <TrendingUp className="size-4 text-primary" /> Monthly Incident Trend &amp; Seasonal Analysis
               </div>
@@ -285,13 +286,13 @@ export default function SimulatorPage() {
         </TabsContent>
 
         {/* ---------------- AI assistant ---------------- */}
-        <TabsContent value="assistant">
+        <TabsContent value="assistant" className="!m-0 !w-full !max-w-none">
           <AiAssistant model={model} summary={summary} />
         </TabsContent>
 
         {/* ---------------- executive summary ---------------- */}
-        <TabsContent value="summary">
-          <Card className="glass p-6 space-y-6">
+        <TabsContent value="summary" className="!m-0 !w-full !max-w-none">
+          <Card className="glass w-full min-w-0 p-6 space-y-6">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <FileText className="size-4 text-primary" /> Traffic Management Executive Summary
             </div>
@@ -380,6 +381,7 @@ export default function SimulatorPage() {
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
     </AppShell>
   )
 }
