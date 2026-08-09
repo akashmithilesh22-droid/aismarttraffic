@@ -287,7 +287,7 @@ export default function SimulatorPage() {
 
         {/* ---------------- AI assistant ---------------- */}
         <TabsContent value="assistant" className="!m-0 !w-full !max-w-none">
-          <AiAssistant model={model} summary={summary} />
+          <AiAssistant model={model} summary={summary} results={results} />
         </TabsContent>
 
         {/* ---------------- executive summary ---------------- */}

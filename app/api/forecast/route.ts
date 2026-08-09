@@ -1,26 +1,18 @@
 import { NextResponse } from "next/server"
-import fs from "fs"
-import path from "path"
-import Papa from "papaparse"
 import { recordsFromRows } from "@/lib/data"
 import { trainModel, predict } from "@/lib/model"
-import type { RawRow, ForecastInput } from "@/lib/types"
+import { loadTrafficDataset } from "@/lib/traffic-data"
+import type { ForecastInput } from "@/lib/types"
 
 // In Next.js serverless/API routes, module-level variables are cached in memory
 // across multiple invocations of the same serverless function container.
 let cachedModel: any = null
 
-function getModel() {
+async function getModel() {
   if (cachedModel) return cachedModel
 
-  const filePath = path.join(process.cwd(), "dataset csv file.csv")
-  const fileContent = fs.readFileSync(filePath, "utf-8")
-  const parsed = Papa.parse<RawRow>(fileContent, {
-    header: true,
-    skipEmptyLines: true,
-    transformHeader: (h) => h.trim(),
-  })
-  const records = recordsFromRows(parsed.data)
+  const data = await loadTrafficDataset()
+  const records = recordsFromRows(data.rows)
   cachedModel = trainModel(records)
   return cachedModel
 }
@@ -37,7 +29,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const model = getModel()
+    const model = await getModel()
     const result = predict(model, input)
 
     return NextResponse.json({
@@ -56,7 +48,7 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    const model = getModel()
+    const model = await getModel()
     return NextResponse.json({
       success: true,
       message: "Traffic model metadata retrieved from backend.",

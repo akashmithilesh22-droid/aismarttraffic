@@ -21,7 +21,9 @@ interface RealtimeContextType {
   onlineOfficers: OnlineOfficer[]
   isConnected: boolean
   realtimeTick: number
+  loadingNotifications: boolean
   markAsRead: (ids: string[]) => Promise<void>
+  markAllRead: () => Promise<void>
   deleteNotifications: (ids: string[]) => Promise<void>
 }
 
@@ -31,7 +33,9 @@ const RealtimeContext = createContext<RealtimeContextType>({
   onlineOfficers: [],
   isConnected: false,
   realtimeTick: 0,
+  loadingNotifications: true,
   markAsRead: async () => {},
+  markAllRead: async () => {},
   deleteNotifications: async () => {}
 })
 
@@ -41,32 +45,34 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const [onlineOfficers, setOnlineOfficers] = useState<OnlineOfficer[]>([])
   const [isConnected, setIsConnected] = useState(false)
   const [realtimeTick, setRealtimeTick] = useState(0)
+  const [loadingNotifications, setLoadingNotifications] = useState(true)
   const supabase = useMemo(() => createClient(), [])
 
-  // Fetch initial notifications
   const fetchNotifications = useCallback(async () => {
     if (!user || !profile) return
+    setLoadingNotifications(true)
 
-    let query = supabase
-      .from("notifications")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(50)
+    try {
+      const res = await fetch("/api/notifications")
+      const data = await res.json()
 
-    if (profile.role !== "Super Admin") {
-      query = query.or(
-        `recipient_user.eq.${user.id},recipient_role.eq.${profile.role},recipient_station.eq.${profile.police_station},and(recipient_user.is.null,recipient_role.is.null,recipient_station.is.null)`
-      )
+      if (!res.ok) {
+        throw new Error(data.error || "Unable to load notifications.")
+      }
+
+      setNotifications(data.notifications || [])
+    } catch (error) {
+      console.error("Notification fetch failed:", error)
+      toast.error("Unable to load notifications. Please try again.")
+      setNotifications([])
+    } finally {
+      setLoadingNotifications(false)
     }
-
-    const { data, error } = await query
-    if (data && !error) {
-      setNotifications(data as Notification[])
-    }
-  }, [user, profile, supabase])
+  }, [user, profile])
 
   useEffect(() => {
-    fetchNotifications()
+    if (!user || !profile) return
+    void fetchNotifications()
   }, [fetchNotifications])
 
   // Realtime subscriptions
@@ -192,36 +198,81 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   }, [user, profile])
 
   const markAsRead = async (ids: string[]) => {
-    // Optimistic update
-    setNotifications(prev => prev.map(n => ids.includes(n.id) ? { ...n, read: true } : n))
-    
-    const res = await fetch("/api/notifications", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "mark_read", notification_ids: ids })
-    })
+    if (!ids || ids.length === 0) return
+    const previousNotifications = notifications
+    setNotifications((prev) => prev.map((n) => (ids.includes(n.id) ? { ...n, read: true, read_at: new Date().toISOString() } : n)))
 
-    // Refresh notifications to reflect the persisted state (or revert if update failed)
     try {
-      const json = await res.json()
-      if (res.ok && !json?.error) {
-        await fetchNotifications()
-      } else {
-        await fetchNotifications()
+      const res = await fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mark_read", notification_ids: ids }),
+      })
+
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to mark as read")
       }
-    } catch (e) {
+
+      // Refresh from backend to ensure canonical state
       await fetchNotifications()
+    } catch (error) {
+      console.error("Mark as read failed:", error)
+      setNotifications(previousNotifications)
+      toast.error("Unable to update notification state. Please try again.")
+    }
+  }
+
+  const markAllRead = async () => {
+    const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id)
+    if (unreadIds.length === 0) return
+
+    const previousNotifications = notifications
+    setNotifications((prev) => prev.map((n) => (!n.read ? { ...n, read: true, read_at: new Date().toISOString() } : n)))
+
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mark_read", notification_ids: unreadIds }),
+      })
+
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to mark all as read")
+      }
+
+      await fetchNotifications()
+    } catch (error) {
+      console.error("Mark all as read failed:", error)
+      setNotifications(previousNotifications)
+      toast.error("Unable to update notifications. Please try again.")
     }
   }
 
   const deleteNotifications = async (ids: string[]) => {
-    setNotifications(prev => prev.filter(n => !ids.includes(n.id)))
-    
-    await fetch("/api/notifications", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "delete", notification_ids: ids })
-    })
+    if (!ids || ids.length === 0) return
+    const previousNotifications = notifications
+    setNotifications((prev) => prev.filter((n) => !ids.includes(n.id)))
+
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", notification_ids: ids }),
+      })
+
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to delete notifications")
+      }
+
+      await fetchNotifications()
+    } catch (error) {
+      console.error("Notification delete failed:", error)
+      setNotifications(previousNotifications)
+      toast.error("Unable to delete notification. Please try again.")
+    }
   }
 
   const unreadCount = notifications.filter(n => !n.read).length
@@ -233,7 +284,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       onlineOfficers,
       isConnected,
       realtimeTick,
+      loadingNotifications,
       markAsRead,
+      markAllRead,
       deleteNotifications
     }}>
       {children}

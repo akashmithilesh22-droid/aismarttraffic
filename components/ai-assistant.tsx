@@ -6,175 +6,323 @@ import { Bot, Send, Sparkles, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
-import type { TrainedModel, DatasetSummary } from "@/lib/types"
+import { useAuth } from "@/providers/auth-provider"
+import type { DatasetSummary, ForecastResult, ResourcePlan, TrainedModel } from "@/lib/types"
 
 interface Message {
   role: "user" | "ai"
   text: string
 }
 
-function generateAnswer(q: string, model: TrainedModel, summary: DatasetSummary): string {
-  const ql = q.toLowerCase()
-
-  const topFeature = model.importance[0]
-  const topCause = Object.entries(model.causeImpact).sort((a, b) => b[1] - a[1])[0]
-  const topZone = Object.entries(model.zoneImpact).sort((a, b) => b[1] - a[1])[0]
-  const topCorridor = Object.entries(model.corridorImpact).sort((a, b) => b[1] - a[1])[0]
-
-  // Congestion high
-  if (ql.includes("congestion") && (ql.includes("high") || ql.includes("why"))) {
-    return `According to our ensemble model trained on Bengaluru data, high congestion is primarily driven by **${topFeature.feature}** (relative importance of ${(topFeature.importance * 100).toFixed(0)}%). Historically, events caused by "${topCause[0]}" show the highest average impact of ${topCause[1].toFixed(1)}/100, while incidents in zone "${topZone[0]}" average ${topZone[1].toFixed(1)}/100. Peak hours (08:00–11:00 and 17:00–20:00) increase incident frequency and impact relative to the global baseline, while road closures introduce a significant increase in modeled severity.`
-  }
-
-  // Police station / precinct
-  if (ql.includes("station") || ql.includes("precinct") || ql.includes("hal traffic police")) {
-    return `The system recommends the **Responsible Police Station** based on historical frequency matching in the dataset. It runs a cascading lookup on matching records (starting from exact junction + zone + corridor match down to zone level) to find which stations historically managed similar incidents. The station with the highest count is recommended as the **Primary Response Station**, while others are listed as **Supporting Stations**, with the assignment confidence based on historical frequency proportion.`
-  }
-
-  // Officers / more officers
-  if (ql.includes("officer") || ql.includes("police") || ql.includes("manpower") || ql.includes("personnel")) {
-    return `The AI recommends officer counts dynamically by starting with a baseline count per risk band (Low: 3, Moderate: 6, High: 12, Critical: 20) and scaling it. The scaling factor is calculated from the ratio of your input duration against the historical average duration of the corresponding risk band (learned averages: Low = ${model.bandStats.Low.avgDuration} min, Moderate = ${model.bandStats.Moderate.avgDuration} min, High = ${model.bandStats.High.avgDuration} min, Critical = ${model.bandStats.Critical.avgDuration} min). Closure requests scale officers by ×1.4, and peak hours scale officers by ×1.25. This ensures deployments reflect the actual scale of historical incidents rather than static rules.`
-  }
-
-  // Factors / prediction explanation
-  if (ql.includes("factor") || ql.includes("influenc") || ql.includes("predict") || ql.includes("how") || ql.includes("decision")) {
-    const factors = model.importance.slice(0, 5).map((f, i) => `${i + 1}. **${f.feature}** (${(f.importance * 100).toFixed(0)}%) — tends to ${f.direction} risk`)
-    return `The top factors influencing each prediction are:\n\n${factors.join("\n")}\n\nThe model is a bagged decision tree ensemble trained on ${summary.totalRecords.toLocaleString()} historical incidents with ${model.metrics.n.toLocaleString()} usable records. Cross-validation R² = ${model.metrics.cvScore.toFixed(2)}, meaning these factors explain ~${(model.metrics.cvScore * 100).toFixed(0)}% of impact variance.`
-  }
-
-  // Crowd size doubles
-  if (ql.includes("crowd") || ql.includes("double") || ql.includes("increase") || ql.includes("bigger")) {
-    return `Doubling crowd size typically increases incident duration and triggers road closures. Our model's resource recommendations are highly sensitive to duration changes relative to the learned band averages (e.g. **${model.bandStats.Moderate.avgDuration} mins** for Moderate events). A longer duration or closure request increases the duration multiplier (square root of input duration / band average) and applies a ×1.4 closure multiplier, causing the recommended officers to increase proportionally. For instance, moving from the average Low duration (**${model.bandStats.Low.avgDuration} min**) to Moderate average duration (**${model.bandStats.Moderate.avgDuration} min**) increases the baseline officers from 3 to 6.`
-  }
-
-  // Diversion
-  if (ql.includes("diversion") || ql.includes("alternate") || ql.includes("route")) {
-    return `Diversions are recommended for Moderate to Critical risk levels when road closure is required. The count scales based on the risk band baseline (Moderate: 1, High: 2, Critical: 4) and is multiplied by 1.4 if closure is active. The highest-impact corridor in the dataset is **${topCorridor[0]}** with an average impact of **${topCorridor[1].toFixed(1)}/100**.`
-  }
-
-  // Barricades
-  if (ql.includes("barricade") || ql.includes("barrier")) {
-    return `Barricade counts are derived from risk band baselines (Low: 4, Moderate: 12, High: 24, Critical: 40) and scaled by duration and closure multipliers. The barricade intensity level is classified based on predicted impact score thresholds: Low (<42), Moderate (42–61), High (62–79), and Maximum (80+). The highest-impact corridor requiring barricading is **${topCorridor[0]}** (avg impact: **${topCorridor[1].toFixed(1)}/100**).`
-  }
-
-  // Zone / location
-  if (ql.includes("zone") || ql.includes("location") || ql.includes("area") || ql.includes("where")) {
-    return `The highest-impact zone in our dataset is "${topZone[0]}" with an average impact score of ${topZone[1].toFixed(1)}/100. Zone history is one of the important features in the model — areas with a pattern of high-impact incidents receive a boosted risk score even for new events. This is computed via target encoding: the zone's historical average impact is used as a numeric feature.`
-  }
-
-  // Risk score
-  if (ql.includes("risk") || ql.includes("score") || ql.includes("rating")) {
-    return `The risk score (0–100) is predicted by a bagged ensemble of decision tree stumps trained on ${model.metrics.n.toLocaleString()} historical incidents. Risk bands: Low (<42), Moderate (42–61), High (62–79), Critical (80+). The model achieves ${model.metrics.accuracy.toFixed(0)}% band accuracy and R² of ${model.metrics.r2.toFixed(2)} on training data. The confidence percentage reflects standard deviation agreement across the trees in the ensemble.`
-  }
-
-  // Dataset / data
-  if (ql.includes("dataset") || ql.includes("data") || ql.includes("training") || ql.includes("model")) {
-    return `The AI was trained on ${summary.totalRecords.toLocaleString()} real Bengaluru traffic incidents with ${summary.totalFeatures} features. After filtering for valid planned/unplanned event types, ${model.metrics.n.toLocaleString()} records were used for model training. Key engineered features include cause impact encoding, corridor sensitivity, zone history, priority level, road closure flag, planned event flag, peak-hour indicator, and incident duration. No synthetic data or external datasets were used.`
-  }
-
-  // Default
-  return `Based on the ${summary.totalRecords.toLocaleString()} real incidents in the dataset, I can explain: (1) why risk scores are high — primarily driven by "${topFeature.feature}"; (2) why officers are recommended in specific quantities — scaling with band averages like Moderate average duration (**${model.bandStats.Moderate.avgDuration} min**); (3) what factors the model uses — all features are derived from real CSV columns with no synthetic data. Try asking: "Why is congestion high?", "What factors influenced the prediction?", or "What happens if crowd size doubles?"`
-}
+type ScenarioResult = ForecastResult & { plan: ResourcePlan }
 
 interface AiAssistantProps {
   model: TrainedModel
   summary: DatasetSummary
+  results?: { a: ScenarioResult; b: ScenarioResult }
 }
 
-export function AiAssistant({ model, summary }: AiAssistantProps) {
+const quickPrompts = [
+  "Why is congestion high?",
+  "What factors influenced this prediction?",
+  "How many officers are needed?",
+  "Explain the resource plan",
+  "What are the peak traffic hours?",
+  "Tell me about the dataset",
+]
+
+function getFirstName(fullName?: string | null) {
+  if (!fullName) return undefined
+  return fullName.split(" ")[0].trim() || undefined
+}
+
+function normalize(text: string) {
+  return text.trim().toLowerCase()
+}
+
+function containsAny(text: string, terms: string[]) {
+  return terms.some((term) => text.includes(term))
+}
+
+function classifyIntent(query: string) {
+  const normalized = normalize(query)
+
+  if (containsAny(normalized, ["hello", "hi", "hey", "good morning", "good evening", "good afternoon"])) {
+    return "greeting"
+  }
+  if (containsAny(normalized, ["thank", "thanks", "appreciate", "cheers"])) {
+    return "thanks"
+  }
+  if (containsAny(normalized, ["bye", "goodbye", "see you", "later"])) {
+    return "bye"
+  }
+  if (containsAny(normalized, ["what can you do", "can you do", "help", "what do you do", "capable"])) {
+    return "help"
+  }
+
+  if (containsAny(normalized, ["officer", "police", "manpower", "personnel", "deploy", "resource", "support"])
+      || containsAny(normalized, ["how many cops", "how many officers", "what should we deploy"])) {
+    return "resources"
+  }
+
+  if (containsAny(normalized, ["barricade", "barrier"])) {
+    return "barricades"
+  }
+  if (containsAny(normalized, ["diversion", "route", "reroute", "alternate route"])) {
+    return "diversion"
+  }
+  if (containsAny(normalized, ["risk", "score", "confidence", "band accuracy"])) {
+    return "risk"
+  }
+  if (containsAny(normalized, ["factor", "influenc", "why did", "why is", "explain", "prediction", "predict"])) {
+    return "explanation"
+  }
+  if (containsAny(normalized, ["dataset", "data", "records", "incidents", "training"])) {
+    return "dataset"
+  }
+  if (containsAny(normalized, ["peak hour", "peak hours", "most common", "when are incidents", "highest impact zone", "what causes the most congestion", "historical"])) {
+    return "history"
+  }
+
+  return "fallback"
+}
+
+function buildGreeting(name?: string) {
+  if (name) {
+    return `Hi ${name}! 👋 How can I help you today? I can explain predictions, traffic risks, resource recommendations, or historical patterns.`
+  }
+  return "Hi! 👋 How can I help you today?"
+}
+
+function buildHelpResponse(name?: string) {
+  if (name) {
+    return `I can help with SmartTraffic AI predictions, explain why a risk score is high, compare what-if scenarios, review recommended resources, and explore the historical dataset. What would you like to check next, ${name}?`
+  }
+  return "I can help with SmartTraffic AI predictions, explain why a risk score is high, compare what-if scenarios, review recommended resources, and explore the historical dataset. What would you like to check next?"
+}
+
+function buildResourceAnswer(results?: { a: ScenarioResult; b: ScenarioResult }) {
+  if (!results) {
+    return "I can explain how the AI derives officer, barricade, checkpoint, and diversion recommendations from risk band and duration, but I need a current scenario to give exact values."
+  }
+
+  const current = results.a.impact <= results.b.impact ? results.a : results.b
+  const scenario = results.a.impact <= results.b.impact ? "Scenario A" : "Scenario B"
+  return `Recommended deployment for ${scenario} based on the current comparison:\n• ${current.plan.officers} Traffic Officers\n• ${current.plan.barricades} Barricades\n• ${current.plan.checkpoints} Checkpoint(s)\n• ${current.plan.diversions} Diversion Route(s)\n\nThis plan is driven by the predicted impact, risk band, and duration for the selected scenario.`
+}
+
+function buildBarricadeAnswer(results?: { a: ScenarioResult; b: ScenarioResult }) {
+  if (!results) {
+    return "Barricade recommendations depend on the active scenario. I need current prediction data to give you exact numbers."
+  }
+
+  return `Current recommendations are ${results.a.plan.barricades} barricades for Scenario A and ${results.b.plan.barricades} barricades for Scenario B. Higher predicted impact and duration increase the barricade intensity required to secure the route.`
+}
+
+function buildDiversionAnswer(results?: { a: ScenarioResult; b: ScenarioResult }) {
+  if (!results) {
+    return "Diversion guidance depends on the current risk profile. I need an active scenario to give exact values."
+  }
+
+  return `Scenario A currently recommends ${results.a.plan.diversions} diversion route(s) and Scenario B recommends ${results.b.plan.diversions} diversion route(s). More diversions are required for the scenario with the higher predicted impact to keep traffic flowing safely.`
+}
+
+function buildRiskAnswer(results?: { a: ScenarioResult; b: ScenarioResult }) {
+  if (!results) {
+    return "I can describe the model's risk bands and confidence scoring, but I need the active scenario to cite exact current values."
+  }
+
+  return `Scenario A predicts ${results.a.impact}/100 (${results.a.risk}) with ${results.a.confidence}% confidence. Scenario B predicts ${results.b.impact}/100 (${results.b.risk}) with ${results.b.confidence}% confidence. The higher score indicates the more severe congestion profile, while confidence shows how much the ensemble agrees on the outcome.`
+}
+
+function buildExplanation(model: TrainedModel, summary: DatasetSummary) {
+  const topFeatures = model.importance.slice(0, 3)
+  const lines = topFeatures.map((feature) => `• ${feature.feature} — ${feature.direction} the predicted risk (${(feature.importance * 100).toFixed(0)}%)`)
+
+  return `Here's why the model considers this high risk:\n\n${lines.join("\n")}\n\nOverall predicted impact is based on ${summary.totalRecords.toLocaleString()} Bengaluru incidents, with the top contributors above shaping the current forecast.`
+}
+
+function buildHistoryAnswer(model: TrainedModel, summary: DatasetSummary) {
+  const topZones = Object.entries(model.zoneImpact)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2)
+    .map(([zone]) => `"${zone}"`)
+    .join(" and ")
+
+  return `The dataset contains ${summary.totalRecords.toLocaleString()} Bengaluru incidents. The highest-impact zones are ${topZones}, and peak hours tend to align with the morning and evening rush periods. Incident cause, corridor history, and zone patterns are strong historical predictors.`
+}
+
+function buildDatasetAnswer(summary: DatasetSummary) {
+  return `SmartTraffic is built on ${summary.totalRecords.toLocaleString()} real Bengaluru incident records with ${summary.totalFeatures} features. The model uses live dataset statistics rather than synthetic data, so the predictions reflect real Bengaluru traffic patterns.`
+}
+
+function buildFallback(name?: string) {
+  if (name) {
+    return `Sorry, ${name}, I couldn't process that directly. I can still help with the current prediction, traffic risk, resource plan, or dataset insights.`
+  }
+  return "Sorry, I couldn't process that directly. I can still help with the current prediction, traffic risk, resource plan, or dataset insights."
+}
+
+function generateAnswer(
+  query: string,
+  model: TrainedModel,
+  summary: DatasetSummary,
+  results?: { a: ScenarioResult; b: ScenarioResult },
+  name?: string,
+): string {
+  const normalized = normalize(query)
+  const intent = classifyIntent(query)
+
+  switch (intent) {
+    case "greeting":
+      return buildGreeting(name)
+    case "thanks":
+      return name
+        ? `You're welcome, ${name}! If you need anything else, I can help with forecasts, resource planning, or explain why the model made a prediction.`
+        : "You're welcome! If you need anything else, I can help with forecasts, resource planning, or explain why the model made a prediction."
+    case "bye":
+      return name ? `See you, ${name}! Stay safe. 🚦` : "See you! Stay safe. 🚦"
+    case "help":
+      return buildHelpResponse(name)
+    case "resources":
+      return buildResourceAnswer(results)
+    case "barricades":
+      return buildBarricadeAnswer(results)
+    case "diversion":
+      return buildDiversionAnswer(results)
+    case "risk":
+      return buildRiskAnswer(results)
+    case "explanation":
+      return buildExplanation(model, summary)
+    case "history":
+      return buildHistoryAnswer(model, summary)
+    case "dataset":
+      return buildDatasetAnswer(summary)
+    case "fallback":
+    default:
+      if (containsAny(normalized, ["what about officers", "and barricades", "and diversions", "what about resources"])) {
+        if (containsAny(normalized, ["officers"])) {
+          return buildResourceAnswer(results)
+        }
+        if (containsAny(normalized, ["barricades"])) {
+          return buildBarricadeAnswer(results)
+        }
+        if (containsAny(normalized, ["diversion", "routes"])) {
+          return buildDiversionAnswer(results)
+        }
+      }
+
+      if (containsAny(normalized, ["why", "because", "cause", "what caused"]) && containsAny(normalized, ["congestion", "traffic", "risk", "score"])) {
+        return buildExplanation(model, summary)
+      }
+
+      if (containsAny(normalized, ["officers", "how many cops", "manpower", "personnel"])) {
+        return buildResourceAnswer(results)
+      }
+
+      if (containsAny(normalized, ["what is a", "define", "random forest", "machine learning", "ml"])) {
+        return "I can answer general ML questions too, but I'm most useful for traffic predictions and SmartTraffic resources. Ask me about the current model forecast or resource plan."
+      }
+
+      return buildFallback(name)
+  }
+}
+
+function renderWithBold(text: string) {
+  return text.split("\n").map((line, lineIndex) => {
+    const segments = line.split(/\*\*(.*?)\*\*/g)
+    return (
+      <span key={lineIndex} className="block whitespace-pre-wrap">
+        {segments.map((segment, segmentIndex) =>
+          segmentIndex % 2 === 1 ? (
+            <strong key={segmentIndex} className="font-semibold">
+              {segment}
+            </strong>
+          ) : (
+            <span key={segmentIndex}>{segment}</span>
+          ),
+        )}
+      </span>
+    )
+  })
+}
+
+export function AiAssistant({ model, summary, results }: AiAssistantProps) {
+  const { profile } = useAuth()
+  const name = getFirstName(profile?.full_name)
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "ai",
-      text: "Hello! I'm the SmartTraffic AI Assistant. Ask me anything about the predictions, model decisions, or how to optimise your traffic management plan. For example:\n\n• Why is congestion high?\n• Why did AI recommend more officers?\n• What factors influenced the prediction?\n• What happens if crowd size doubles?",
+      text: `Hi ${name ?? ""}${name ? "! " : ""}I'm your SmartTraffic AI assistant. I can help you:\n• understand congestion predictions\n• explain model decisions\n• review recommended resources\n• explore historical traffic patterns`,
     },
   ])
   const [input, setInput] = useState("")
   const [thinking, setThinking] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, thinking])
 
-  function handleSend() {
-    const q = input.trim()
-    if (!q) return
+  function sendMessage(text: string) {
+    const trimmed = text.trim()
+    if (!trimmed) return
+
+    setShowSuggestions(false)
+    setMessages((prev) => [...prev, { role: "user", text: trimmed }])
     setInput("")
-    setMessages((prev) => [...prev, { role: "user", text: q }])
     setThinking(true)
+
     setTimeout(() => {
-      const answer = generateAnswer(q, model, summary)
+      const answer = generateAnswer(trimmed, model, summary, results, name)
       setMessages((prev) => [...prev, { role: "ai", text: answer }])
       setThinking(false)
-    }, 700 + Math.random() * 500)
+    }, 400 + Math.random() * 250)
   }
 
   return (
-    <Card className="glass flex flex-col p-0 overflow-hidden">
-      {/* header */}
+    <Card className="glass flex flex-col p-0 overflow-hidden min-h-[540px]">
       <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
         <div className="flex size-7 items-center justify-center rounded-md bg-primary/15">
           <Bot className="size-4 text-primary" />
         </div>
         <div>
           <p className="text-sm font-semibold">AI Assistant</p>
-          <p className="text-[11px] text-muted-foreground">Powered by Explainable AI · {model.metrics.n.toLocaleString()} records</p>
+          <p className="text-[11px] text-muted-foreground">Powered by Explainable AI · {summary.totalRecords.toLocaleString()} records</p>
         </div>
         <Sparkles className="ml-auto size-4 text-primary animate-pulse-glow" />
       </div>
 
-      {/* messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-[400px]">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-[calc(100vh-380px)] sm:max-h-[420px]">
         <AnimatePresence initial={false}>
-          {messages.map((m, i) => (
+          {messages.map((message, index) => (
             <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 6 }}
+              key={index}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25 }}
-              className={`flex gap-2.5 ${m.role === "user" ? "flex-row-reverse" : ""}`}
+              transition={{ duration: 0.18 }}
+              className={`flex gap-3 ${message.role === "user" ? "flex-row-reverse" : ""}`}
             >
-              <div
-                className={`flex size-7 shrink-0 items-center justify-center rounded-full ${
-                  m.role === "ai" ? "bg-primary/15 text-primary" : "bg-accent/15 text-accent"
-                }`}
-              >
-                {m.role === "ai" ? <Bot className="size-3.5" /> : <User className="size-3.5" />}
+              <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${message.role === "ai" ? "bg-primary/15 text-primary" : "bg-accent/15 text-accent"}`}>
+                {message.role === "ai" ? <Bot className="size-4" /> : <User className="size-4" />}
               </div>
-              <div
-                className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
-                  m.role === "ai"
-                    ? "bg-card border border-border"
-                    : "bg-primary/10 border border-primary/20 text-right"
-                }`}
-              >
-                {m.text.split("\n").map((line, li) => {
-                  const formatted = line.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-                  return (
-                    <span key={li}>
-                      <span dangerouslySetInnerHTML={{ __html: formatted }} />
-                      {li < m.text.split("\n").length - 1 && <br />}
-                    </span>
-                  )
-                })}
+              <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6 ${message.role === "ai" ? "bg-card border border-border" : "bg-primary/10 border border-primary/20 text-right"}`}>
+                {renderWithBold(message.text)}
               </div>
             </motion.div>
           ))}
           {thinking && (
-            <motion.div key="thinking" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-2.5">
-              <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-                <Bot className="size-3.5" />
+            <motion.div key="typing" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }} className="flex gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                <Bot className="size-4" />
               </div>
-              <div className="rounded-xl border border-border bg-card px-3.5 py-2.5">
-                <div className="flex gap-1">
-                  {[0, 1, 2].map((i) => (
-                    <motion.div
-                      key={i}
-                      className="size-1.5 rounded-full bg-primary"
-                      animate={{ opacity: [0.3, 1, 0.3] }}
-                      transition={{ duration: 0.8, delay: i * 0.2, repeat: Infinity }}
-                    />
-                  ))}
+              <div className="rounded-2xl border border-border bg-card px-4 py-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-primary animate-pulse" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-primary/70 animate-pulse delay-100" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-primary/50 animate-pulse delay-200" />
+                  <span className="text-[12px] text-muted-foreground">AI is thinking...</span>
                 </div>
               </div>
             </motion.div>
@@ -183,18 +331,33 @@ export function AiAssistant({ model, summary }: AiAssistantProps) {
         <div ref={bottomRef} />
       </div>
 
-      {/* input */}
-      <div className="border-t border-border p-3 flex gap-2">
-        <Input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
-          placeholder="Ask about predictions, officers, congestion…"
-          className="text-sm"
-        />
-        <Button onClick={handleSend} size="sm" className="gap-1.5 shrink-0" disabled={!input.trim() || thinking}>
-          <Send className="size-3.5" /> Send
-        </Button>
+      <div className="border-t border-border p-3">
+        {showSuggestions && (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {quickPrompts.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => sendMessage(prompt)}
+                className="rounded-full border border-border bg-background/80 px-3 py-1.5 text-[12px] font-medium text-foreground transition hover:border-primary/60 hover:bg-primary/10"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Input
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={(event) => event.key === "Enter" && sendMessage(input)}
+            placeholder="Ask about predictions, officers, congestion…"
+            className="text-sm"
+          />
+          <Button onClick={() => sendMessage(input)} size="sm" className="gap-1.5 shrink-0" disabled={!input.trim() || thinking}>
+            <Send className="size-3.5" /> Send
+          </Button>
+        </div>
       </div>
     </Card>
   )

@@ -25,6 +25,7 @@ import {
   ArrowRight
 } from "lucide-react"
 import { buttonVariants } from "@/components/ui/button"
+import { FloatingAiAssistant } from "@/components/floating-ai-assistant"
 import { cn } from "@/lib/utils"
 import type { TrafficEvent, AuditLog } from "@/types/database"
 import { formatDistanceToNow } from "date-fns"
@@ -366,6 +367,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+      <FloatingAiAssistant />
     </AppShell>
   )
 }

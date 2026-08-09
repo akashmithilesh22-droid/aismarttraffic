@@ -2,12 +2,71 @@ import { NextResponse, type NextRequest } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 
+// GET /api/notifications
+// Fetch notifications visible to the current user.
+export async function GET() {
+  try {
+    const supabase = await createClient()
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { data: profileData, error: profileErr } = await supabase
+      .from("profiles")
+      .select("role, police_station")
+      .eq("id", user.id)
+      .maybeSingle()
+
+    if (profileErr) {
+      throw profileErr
+    }
+
+    const userRole = (profileData as any)?.role ?? null
+    const userStation = (profileData as any)?.police_station ?? null
+
+    let query = supabase
+      .from("notifications")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50)
+
+    if (userRole !== "Super Admin") {
+      query = query.or(
+        `recipient_user.eq.${user.id},recipient_role.eq.${userRole},recipient_station.eq.${userStation},and(recipient_user.is.null,recipient_role.is.null,recipient_station.is.null)`
+      )
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      throw error
+    }
+
+    return NextResponse.json({ notifications: data || [] })
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || "Unable to load notifications." },
+      { status: 500 }
+    )
+  }
+}
+
 // POST /api/notifications
-// Marks notifications as read
+// Marks notifications as read or deletes notifications.
+// Uses authorization checks so users can only modify notifications
+// that belong to them/their role/station/global notifications.
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -16,73 +75,95 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { action, notification_ids } = body
 
-    if (action === "mark_read") {
-      if (notification_ids && Array.isArray(notification_ids) && notification_ids.length > 0) {
-        // Mark specific notifications as read
-        // Use an admin client to perform the update but only for rows
-        // that actually belong to this user (by recipient_user, recipient_role, or recipient_station).
-        const adminSupabase = createAdminClient()
+    if (!Array.isArray(notification_ids) || notification_ids.length === 0) {
+      return NextResponse.json(
+        { error: "No notification IDs provided" },
+        { status: 400 }
+      )
+    }
 
-        // Fetch user profile to determine role/station
-        const { data: profileData, error: profileErr } = await supabase
-          .from("profiles")
-          .select("role, police_station")
-          .eq("id", user.id)
-          .maybeSingle()
+    const { data: profileData, error: profileErr } = await supabase
+      .from("profiles")
+      .select("role, police_station")
+      .eq("id", user.id)
+      .maybeSingle()
 
-        if (profileErr) throw profileErr
+    if (profileErr) {
+      throw profileErr
+    }
 
-        const userRole = (profileData as any)?.role ?? null
-        const userStation = (profileData as any)?.police_station ?? null
+    const userRole = (profileData as any)?.role ?? null
+    const userStation = (profileData as any)?.police_station ?? null
 
-        // Update each notification only if it belongs to this user/role/station
-        for (const id of notification_ids) {
-          const { data: notif } = await adminSupabase
-            .from("notifications")
-            .select("recipient_user, recipient_role, recipient_station")
-            .eq("id", id)
-            .maybeSingle()
+    const adminSupabase = createAdminClient()
 
-          if (!notif) continue
+    for (const id of notification_ids) {
+      const { data: notif, error: notifErr } = await adminSupabase
+        .from("notifications")
+        .select("recipient_user, recipient_role, recipient_station")
+        .eq("id", id)
+        .maybeSingle()
 
-          const isGlobal = !notif.recipient_user && !notif.recipient_role && !notif.recipient_station
-          const isSuperAdmin = userRole === "Super Admin"
-
-          const belongsToUser =
-            isSuperAdmin ||
-            isGlobal ||
-            notif.recipient_user === user.id ||
-            (userRole && notif.recipient_role === userRole) ||
-            (userStation && notif.recipient_station === userStation)
-
-          if (belongsToUser) {
-            const { error } = await adminSupabase
-              .from("notifications")
-              .update({ read: true })
-              .eq("id", id)
-
-            if (error) throw error
-          }
-        }
-      } else {
-        // Mark all notifications as read for this user
-        // (This is tricky since they might be targeted by role/station, so we'll just update where we can)
-        // Usually, we pass the IDs to mark read
-        return NextResponse.json({ error: "No notification IDs provided" }, { status: 400 })
+      if (notifErr) {
+        throw notifErr
       }
-    } else if (action === "delete") {
-      if (notification_ids && Array.isArray(notification_ids) && notification_ids.length > 0) {
-        const { error } = await supabase
+
+      if (!notif) continue
+
+      const isGlobal =
+        !notif.recipient_user &&
+        !notif.recipient_role &&
+        !notif.recipient_station
+
+      const isSuperAdmin = userRole === "Super Admin"
+
+      const belongsToUser =
+        isSuperAdmin ||
+        isGlobal ||
+        notif.recipient_user === user.id ||
+        (userRole && notif.recipient_role === userRole) ||
+        (userStation && notif.recipient_station === userStation)
+
+      if (!belongsToUser) {
+        continue
+      }
+
+      if (action === "mark_read") {
+        const { error } = await adminSupabase
+          .from("notifications")
+          .update({
+            read: true,
+            read_at: new Date().toISOString(),
+          })
+          .eq("id", id)
+
+        if (error) {
+          throw error
+        }
+      } else if (action === "delete") {
+        const { error } = await adminSupabase
           .from("notifications")
           .delete()
-          .in("id", notification_ids)
-          
-        if (error) throw error
+          .eq("id", id)
+
+        if (error) {
+          throw error
+        }
       }
+    }
+
+    if (action !== "mark_read" && action !== "delete") {
+      return NextResponse.json(
+        { error: "Unsupported action" },
+        { status: 400 }
+      )
     }
 
     return NextResponse.json({ success: true })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Internal Error" }, { status: 500 })
+    return NextResponse.json(
+      { error: err.message || "Internal Error" },
+      { status: 500 }
+    )
   }
 }

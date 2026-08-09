@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useMemo, type ReactNode } from "react"
 import useSWR from "swr"
-import Papa from "papaparse"
 import type { RawRow, TrafficRecord, DatasetSummary, TrainedModel, LocationHierarchy } from "./types"
 import { recordsFromRows, summarize } from "./data"
 import { trainModel } from "./model"
@@ -38,15 +37,12 @@ const EMPTY_HIERARCHY: LocationHierarchy = {
 
 const Ctx = createContext<EngineData | null>(null)
 
-async function fetchCsv(url: string): Promise<{ rows: RawRow[]; headers: string[] }> {
+async function fetchDataset(url: string): Promise<{ rows: RawRow[]; headers: string[] }> {
   const res = await fetch(url)
-  const text = await res.text()
-  const parsed = Papa.parse<RawRow>(text, {
-    header: true,
-    skipEmptyLines: true,
-    transformHeader: (h) => h.trim(),
-  })
-  return { rows: parsed.data, headers: parsed.meta.fields ?? [] }
+  if (!res.ok) {
+    throw new Error("Failed to load traffic dataset")
+  }
+  return res.json()
 }
 
 function uniqueSorted(records: TrafficRecord[], key: (r: TrafficRecord) => string, min = 1, max = 120) {
@@ -123,7 +119,7 @@ export function resolveJunctions(
 }
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const { data, error, isLoading } = useSWR("/dataset.csv", fetchCsv, {
+  const { data, error, isLoading } = useSWR("/api/traffic-records", fetchDataset, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
   })

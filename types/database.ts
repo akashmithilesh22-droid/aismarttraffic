@@ -139,7 +139,10 @@ export interface Notification {
   recipient_role?: string | null
   recipient_station?: string | null
   recipient_user?: string | null
+  event_id?: string | null
+  prediction_id?: string | null
   read: boolean
+  read_at?: string | null
   created_by?: string | null
   created_at: string
 }

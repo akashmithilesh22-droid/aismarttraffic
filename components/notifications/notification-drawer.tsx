@@ -8,13 +8,10 @@ import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
 
 export function NotificationDrawer({ triggerClassName }: { triggerClassName?: string }) {
-  const { notifications, unreadCount, markAsRead, deleteNotifications } = useRealtime()
+  const { notifications, unreadCount, markAsRead, markAllRead, deleteNotifications, loadingNotifications } = useRealtime()
 
   const markAllAsRead = () => {
-    const unreadIds = notifications.filter(n => !n.read).map(n => n.id)
-    if (unreadIds.length > 0) {
-      markAsRead(unreadIds)
-    }
+    markAllRead()
   }
 
   const getPriorityIcon = (priority: string) => {
@@ -68,11 +65,17 @@ export function NotificationDrawer({ triggerClassName }: { triggerClassName?: st
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {notifications.length === 0 ? (
+          {loadingNotifications ? (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="h-24 animate-pulse rounded-xl bg-muted/40" />
+              ))}
+            </div>
+          ) : notifications.length === 0 ? (
             <div className="flex h-40 flex-col items-center justify-center text-center text-muted-foreground">
               <CheckCircle2 className="size-10 opacity-20 mb-3" />
-              <p className="text-sm font-medium">All caught up!</p>
-              <p className="text-xs">No new notifications right now.</p>
+              <p className="text-sm font-medium">You're all caught up.</p>
+              <p className="text-xs">No notifications right now.</p>
             </div>
           ) : (
             notifications.map((n) => (

@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import useSWR from "swr"
 import { AppShell } from "@/components/app-shell"
 import { PageHeader, StatCard } from "@/components/ui-kit"
 import { useEngine } from "@/lib/data-provider"
@@ -36,7 +37,7 @@ import {
 
 
 const TRAIN_STEPS = [
-  "CSV Dataset",
+  "Supabase Dataset",
   "Data Cleaning",
   "Feature Engineering",
   "Feature Selection",
@@ -53,9 +54,37 @@ export default function TrainingPage() {
   )
 }
 
+const fetcher = async (url: string) => {
+  const res = await fetch(url)
+  if (!res.ok) {
+    const error = await res.json()
+    throw new Error(error?.error || "Failed to fetch traffic data")
+  }
+  return res.json()
+}
+
 function TrainingInner() {
   const { records, summary, model, rawRows, headers } = useEngine()
   const [query, setQuery] = useState("")
+  const [page, setPage] = useState(1)
+  const pageSize = 100
+
+  const { data: pageData, error: pageError, isLoading: pageLoading } = useSWR<{
+    rows: Array<Record<string, unknown>>
+    headers: string[]
+    totalCount: number
+    page: number
+    pageSize: number
+  }>(
+    `/api/traffic-records?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(query)}`,
+    fetcher,
+    { revalidateOnFocus: false, revalidateOnReconnect: false }
+  )
+
+  const totalCount = pageData?.totalCount ?? summary?.totalRecords ?? 0
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
+  const pageRows: Array<Record<string, unknown>> = pageData?.rows ?? []
+  const filteredRows = pageRows
 
   const causeCounts = useMemo(() => countBy(records, (r) => r.cause).sort((a, b) => b.value - a.value).slice(0, 8), [records])
   const causeImpact = useMemo(() => avgImpactBy(records, (r) => r.cause).sort((a, b) => b.value - a.value).slice(0, 8), [records])
@@ -77,12 +106,18 @@ function TrainingInner() {
 
 
   const displayHeaders = headers.slice(0, 9)
-  const filteredRows = useMemo(() => {
-    const base = rawRows.slice(0, 600)
-    if (!query.trim()) return base.slice(0, 100)
-    const q = query.toLowerCase()
-    return base.filter((r) => displayHeaders.some((h) => String(r[h] ?? "").toLowerCase().includes(q))).slice(0, 100)
-  }, [rawRows, query, displayHeaders])
+
+  const pageIndicator = `${page} of ${totalPages}`
+
+  const showSearchResults = query.trim().length > 0
+
+  const searchMessage = pageError
+    ? "Unable to load search results."
+    : pageLoading
+    ? "Loading records..."
+    : pageRows.length === 0 && showSearchResults
+    ? "No records found for that search query."
+    : ""
 
   if (!summary || !model) return null
 
@@ -91,7 +126,7 @@ function TrainingInner() {
       <PageHeader
         eyebrow="Page 02"
         title="AI Training Center"
-        description="How the model learns. Every metric, chart, and insight is computed live from the uploaded dataset."
+        description="How the model learns. Every metric, chart, and insight is computed live from a persistent Supabase dataset."
       >
         <Badge variant="outline" className="gap-1.5 border-accent/40 text-accent">
           <HeartPulse className="size-3.5" /> Health {summary.healthScore}/100
@@ -105,7 +140,7 @@ function TrainingInner() {
             <HeartPulse className="size-5 text-primary animate-pulse-glow" />
           </div>
           <div>
-            <p className="text-sm font-semibold">Model Trained on <span className="text-primary">dataset csv file.csv</span></p>
+            <p className="text-sm font-semibold">Model Trained on <span className="text-primary">Supabase traffic dataset</span></p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {summary.totalRecords.toLocaleString()} records → {model.metrics.n.toLocaleString()} usable training samples · {summary.totalFeatures} features
             </p>
@@ -143,7 +178,15 @@ function TrainingInner() {
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Dataset Explorer</h2>
           <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search records…" value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9" />
+            <Input
+              placeholder="Search records…"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value)
+                setPage(1)
+              }}
+              className="pl-9"
+            />
           </div>
         </div>
         <Card className="overflow-hidden p-0">
@@ -171,11 +214,32 @@ function TrainingInner() {
               </tbody>
             </table>
           </div>
-          <div className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
-            Showing {filteredRows.length} of {summary.totalRecords.toLocaleString()} records · {displayHeaders.length} of{" "}
-            {headers.length} columns
+          <div className="border-t border-border px-3 py-2 text-xs text-muted-foreground flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Showing {pageRows.length} of {totalCount.toLocaleString()} records · {displayHeaders.length} of {headers.length} columns
+            </span>
+            <span>Page {pageIndicator}</span>
           </div>
         </Card>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-sm text-muted-foreground">Showing page {pageIndicator}</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              disabled={page <= 1 || pageLoading}
+              className="rounded-md border border-border bg-background px-4 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+              disabled={page >= totalPages || pageLoading}
+              className="rounded-md border border-border bg-background px-4 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </section>
 
       {/* Incident Map */}
