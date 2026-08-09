@@ -1,4 +1,4 @@
-﻿-- Migration 04: Real-Time Operations & Notification Center
+-- Migration 04: Real-Time Operations & Notification Center
 -- Run this in the Supabase SQL Editor AFTER migrations 01, 02, and 03.
 
 -- ============================================================================
@@ -37,7 +37,9 @@ CREATE POLICY "Users can update their notifications (mark read)"
   USING (
     recipient_user = auth.uid() OR
     recipient_role = (SELECT role FROM public.profiles WHERE id = auth.uid()) OR
-    recipient_station = (SELECT police_station FROM public.profiles WHERE id = auth.uid())
+    recipient_station = (SELECT police_station FROM public.profiles WHERE id = auth.uid()) OR
+    (recipient_user IS NULL AND recipient_role IS NULL AND recipient_station IS NULL) OR
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'Super Admin')
   );
 
 CREATE POLICY "Users can delete their notifications"

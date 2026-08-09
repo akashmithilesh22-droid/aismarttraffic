@@ -1,6 +1,6 @@
-﻿"use client"
+"use client"
 
-import React, { createContext, useContext, useEffect, useState } from "react"
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "./auth-provider"
 import type { Notification } from "@/types/database"
@@ -41,33 +41,33 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const [onlineOfficers, setOnlineOfficers] = useState<OnlineOfficer[]>([])
   const [isConnected, setIsConnected] = useState(false)
   const [realtimeTick, setRealtimeTick] = useState(0)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   // Fetch initial notifications
-  useEffect(() => {
+  const fetchNotifications = useCallback(async () => {
     if (!user || !profile) return
 
-    const fetchNotifications = async () => {
-      let query = supabase
-        .from("notifications")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(50)
+    let query = supabase
+      .from("notifications")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50)
 
-      if (profile.role !== "Super Admin") {
-        query = query.or(
-          `recipient_user.eq.${user.id},recipient_role.eq.${profile.role},recipient_station.eq.${profile.police_station},and(recipient_user.is.null,recipient_role.is.null,recipient_station.is.null)`
-        )
-      }
-
-      const { data, error } = await query
-      if (data && !error) {
-        setNotifications(data as Notification[])
-      }
+    if (profile.role !== "Super Admin") {
+      query = query.or(
+        `recipient_user.eq.${user.id},recipient_role.eq.${profile.role},recipient_station.eq.${profile.police_station},and(recipient_user.is.null,recipient_role.is.null,recipient_station.is.null)`
+      )
     }
 
+    const { data, error } = await query
+    if (data && !error) {
+      setNotifications(data as Notification[])
+    }
+  }, [user, profile, supabase])
+
+  useEffect(() => {
     fetchNotifications()
-  }, [user, profile])
+  }, [fetchNotifications])
 
   // Realtime subscriptions
   useEffect(() => {
@@ -195,11 +195,23 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     // Optimistic update
     setNotifications(prev => prev.map(n => ids.includes(n.id) ? { ...n, read: true } : n))
     
-    await fetch("/api/notifications", {
+    const res = await fetch("/api/notifications", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "mark_read", notification_ids: ids })
     })
+
+    // Refresh notifications to reflect the persisted state (or revert if update failed)
+    try {
+      const json = await res.json()
+      if (res.ok && !json?.error) {
+        await fetchNotifications()
+      } else {
+        await fetchNotifications()
+      }
+    } catch (e) {
+      await fetchNotifications()
+    }
   }
 
   const deleteNotifications = async (ids: string[]) => {
