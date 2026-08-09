@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useMemo, type ReactNode } from "react"
 import useSWR from "swr"
+import { useAuth } from "@/providers/auth-provider"
 import type { RawRow, TrafficRecord, DatasetSummary, TrainedModel, LocationHierarchy } from "./types"
 import { recordsFromRows, summarize } from "./data"
 import { trainModel } from "./model"
@@ -10,6 +11,8 @@ import { buildLocationHierarchy } from "./analytics"
 interface EngineData {
   loading: boolean
   error: boolean
+  errorMessage: string | null
+  retry: () => void
   rawRows: RawRow[]
   headers: string[]
   records: TrafficRecord[]
@@ -38,11 +41,16 @@ const EMPTY_HIERARCHY: LocationHierarchy = {
 const Ctx = createContext<EngineData | null>(null)
 
 async function fetchDataset(url: string): Promise<{ rows: RawRow[]; headers: string[] }> {
-  const res = await fetch(url)
+  const startedAt = Date.now()
+  const res = await fetch(url, { credentials: "include" })
+  const payload = await res.json().catch(() => null)
   if (!res.ok) {
-    throw new Error("Failed to load traffic dataset")
+    const message = payload?.details || payload?.error || `Request failed with status ${res.status}`
+    console.error("[traffic-dataset] request failed", { status: res.status, message })
+    throw new Error(message)
   }
-  return res.json()
+  console.info("[traffic-dataset] loaded", { durationMs: Date.now() - startedAt, rows: payload?.rows?.length ?? 0 })
+  return payload
 }
 
 function uniqueSorted(records: TrafficRecord[], key: (r: TrafficRecord) => string, min = 1, max = 120) {
@@ -119,16 +127,29 @@ export function resolveJunctions(
 }
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const { data, error, isLoading } = useSWR("/api/traffic-records", fetchDataset, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-  })
+  const { user, loading: authLoading } = useAuth()
+  const { data, error, isLoading, mutate } = useSWR(
+    !authLoading && user ? "/api/traffic-records" : null,
+    fetchDataset,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      errorRetryCount: 2,
+      errorRetryInterval: 1000,
+      onErrorRetry: (_error, _key, _config, revalidate, { retryCount }) => {
+        if (retryCount >= 2) return
+        window.setTimeout(() => revalidate({ retryCount }), retryCount === 0 ? 1000 : 2000)
+      },
+    },
+  )
 
   const value = useMemo<EngineData>(() => {
     if (!data) {
       return {
-        loading: isLoading,
+        loading: authLoading || isLoading,
         error: !!error,
+        errorMessage: error?.message ?? null,
+        retry: () => { void mutate() },
         rawRows: [],
         headers: [],
         records: [],
@@ -156,6 +177,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return {
       loading: false,
       error: false,
+      errorMessage: null,
+      retry: () => { void mutate() },
       rawRows: data.rows,
       headers: data.headers,
       records,

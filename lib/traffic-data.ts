@@ -90,23 +90,22 @@ const FETCH_BATCH_SIZE = 1000
 
 export async function loadTrafficDataset(): Promise<{ rows: RawRow[]; headers: string[] }> {
   const supabase = await createClient()
-  const rows: Array<Record<string, unknown>> = []
-  let start = 0
+  const { count, error: countError } = await supabase
+    .from("traffic_records")
+    .select("id", { count: "exact", head: true })
+  if (countError) throw new Error(countError.message)
 
-  while (true) {
-    const { data, error } = await (supabase.from("traffic_records") as any)
+  const batches = await Promise.all(Array.from({ length: Math.ceil((count ?? 0) / FETCH_BATCH_SIZE) }, (_, index) => {
+    const start = index * FETCH_BATCH_SIZE
+    return (supabase.from("traffic_records") as any)
       .select(TRAFFIC_DATA_HEADERS.join(","))
       .range(start, start + FETCH_BATCH_SIZE - 1)
+  }))
 
-    if (error) {
-      throw new Error(error.message)
-    }
-
-    const batch = (data ?? []) as Array<Record<string, unknown>>
-    rows.push(...batch)
-
-    if (batch.length < FETCH_BATCH_SIZE) break
-    start += FETCH_BATCH_SIZE
+  const rows: Array<Record<string, unknown>> = []
+  for (const { data, error } of batches) {
+    if (error) throw new Error(error.message)
+    rows.push(...((data ?? []) as Array<Record<string, unknown>>))
   }
 
   return {

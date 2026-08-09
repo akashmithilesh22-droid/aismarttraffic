@@ -3,7 +3,7 @@
 import { Bot } from "lucide-react"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { AiAssistant } from "@/components/ai-assistant"
-import { DataProvider, useEngine } from "@/lib/data-provider"
+import { useEngine } from "@/lib/data-provider"
 
 function FloatingAiAssistantPanel() {
   const { loading, error, model, summary } = useEngine()
@@ -35,9 +35,5 @@ function FloatingAiAssistantPanel() {
 }
 
 export function FloatingAiAssistant() {
-  return (
-    <DataProvider>
-      <FloatingAiAssistantPanel />
-    </DataProvider>
-  )
+  return <FloatingAiAssistantPanel />
 }

@@ -3,7 +3,15 @@ import { createClient } from "@/lib/supabase/server"
 import { TRAFFIC_DATA_HEADERS, loadTrafficDataset, applyTrafficSearch } from "@/lib/traffic-data"
 
 export async function GET(request: Request) {
+  const startedAt = Date.now()
   try {
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      console.warn("[traffic-records] unauthorized request", { authError: authError?.message })
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+    }
+
     const url = new URL(request.url)
     const page = url.searchParams.get("page")
     const pageSize = parseInt(url.searchParams.get("pageSize") || "100", 10)
@@ -16,7 +24,6 @@ export async function GET(request: Request) {
       const start = (pageNumber - 1) * limit
       const end = start + limit - 1
 
-      const supabase = await createClient()
       let query = supabase
         .from("traffic_records")
         .select(TRAFFIC_DATA_HEADERS.join(","), { count: "exact" })
@@ -41,12 +48,18 @@ export async function GET(request: Request) {
     }
 
     const data = await loadTrafficDataset()
+    console.info("[traffic-records] dataset loaded", {
+      userId: user.id,
+      rows: data.rows.length,
+      durationMs: Date.now() - startedAt,
+    })
     return NextResponse.json({
       ...data,
       totalCount: data.rows.length,
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to load traffic dataset"
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error("[traffic-records] request failed", { message, durationMs: Date.now() - startedAt })
+    return NextResponse.json({ error: "Unable to load traffic records", details: message }, { status: 500 })
   }
 }
